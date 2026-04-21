@@ -53,6 +53,7 @@ export function IndexEditor({ activeTable, updateTable, selectedIndex, setSelect
 
   // Auto-open properties when selection changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (activeIndex) setPropsOpen(true)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedIndex])

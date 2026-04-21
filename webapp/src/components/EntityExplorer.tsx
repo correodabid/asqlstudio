@@ -114,6 +114,7 @@ export function EntityExplorer({ domain, onOpenChangeDebugger }: Props) {
     }
   }, [domain])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadEntities() }, [loadEntities])
 
   // ── Load instances ─────────────────────────────────────────────────────────

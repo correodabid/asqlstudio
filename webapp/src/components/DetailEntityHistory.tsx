@@ -90,6 +90,7 @@ export function DetailEntityHistory({
 
   useEffect(() => {
     if (expanded && versions.length === 0 && rootPK) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadHistory()
     }
   }, [expanded, versions.length, rootPK, loadHistory])

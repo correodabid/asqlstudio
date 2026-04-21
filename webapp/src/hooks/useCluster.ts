@@ -238,6 +238,7 @@ export function useCluster() {
     return off
   }, [pushEvent])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { refresh() }, [refresh])
 
   useEffect(() => {

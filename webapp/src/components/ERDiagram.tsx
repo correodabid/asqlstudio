@@ -1394,6 +1394,7 @@ export function ERDiagram({ model, selectedTable, onSelectTable, multiModel, onD
   })
 
   // ── Isolation: filter visible positions when an entity is isolated
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const visibleTablePositions = useMemo(() => {
     if (isolatedEntity === null) return allTablePositions
     return allTablePositions.filter(pos => {
@@ -1402,12 +1403,14 @@ export function ERDiagram({ model, selectedTable, onSelectTable, multiModel, onD
     })
   }, [isolatedEntity, allTablePositions, tableToEntityName])
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const visibleTableKeySet = useMemo(() => {
     const s = new Set<string>()
     for (const p of visibleTablePositions) s.add(p.tableKey || p.table.name)
     return s
   }, [visibleTablePositions])
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const visibleRels = useMemo(() => {
     if (isolatedEntity === null) return allRels
     return allRels.filter(rel => {
@@ -2065,6 +2068,7 @@ export function ERDiagram({ model, selectedTable, onSelectTable, multiModel, onD
       </div>
 
       {/* Minimap */}
+      {/* eslint-disable react-hooks/refs */}
       {visibleTablePositions.length > 1 && containerRef.current && (
         <ERMinimap
           tables={visibleTablePositions}
@@ -2075,6 +2079,7 @@ export function ERDiagram({ model, selectedTable, onSelectTable, multiModel, onD
           onPan={(p) => setPan(p)}
         />
       )}
+      {/* eslint-enable react-hooks/refs */}
     </div>
   )
 }
