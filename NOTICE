@@ -1,0 +1,21 @@
+ASQL Studio
+Copyright 2026 ASQL contributors
+
+This product includes software developed by the ASQL project
+(https://github.com/correodabid/asqlstudio).
+
+Licensed under the Apache License, Version 2.0. See the LICENSE file
+in the project root for the full license text.
+
+This product depends on third-party libraries whose licenses are
+reproduced in their respective source repositories or listed in go.mod
+and webapp/package.json.
+
+ASQL Studio is built with Wails (https://wails.io), a framework for
+building desktop applications using Go and web technologies.
+
+PostgreSQL® is a trademark or registered trademark of the PostgreSQL
+Global Development Group. ASQL Studio connects to an ASQL engine which
+implements a subset of the PostgreSQL wire protocol for client
+compatibility; neither ASQL Studio nor ASQL are affiliated with or
+endorsed by the PostgreSQL project.
