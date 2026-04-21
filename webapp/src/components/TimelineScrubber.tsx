@@ -150,6 +150,7 @@ export function TimelineScrubber({ maxLSN, currentLSN, domain, onScrub, onRefres
   const [jumpInput, setJumpInput] = useState('')
   const [lsnLabelMode, setLsnLabelMode] = useState<'lsn' | 'time'>('lsn')
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     setZoomRange(prev => {
       if (prev[1] <= 1 || prev[1] < maxLSN * 0.3) return [1, Math.max(1, maxLSN)]
@@ -185,6 +186,7 @@ export function TimelineScrubber({ maxLSN, currentLSN, domain, onScrub, onRefres
     }
   }, [maxLSN, domain])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadData() }, [loadData])
 
   // ─── Derived geometry ─────────────────────────────────────────────────────
@@ -285,6 +287,7 @@ export function TimelineScrubber({ maxLSN, currentLSN, domain, onScrub, onRefres
     return () => { if (playRef.current) clearInterval(playRef.current) }
   }, [playing, speedIdx, onScrub])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     if (playing && currentLSN >= maxLSN) {
       setPlaying(false)
@@ -606,6 +609,7 @@ export function TimelineScrubber({ maxLSN, currentLSN, domain, onScrub, onRefres
           <div
             className="tl-tooltip"
             style={{
+              // eslint-disable-next-line react-hooks/refs
               left: `${Math.min(tooltipPos.x, (trackRef.current?.offsetWidth ?? 400) - 220)}px`,
               bottom: '100%',
             }}

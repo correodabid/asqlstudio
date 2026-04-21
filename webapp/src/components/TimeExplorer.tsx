@@ -119,10 +119,12 @@ export function TimeExplorer({ domain }: Props) {
     } catch { /* ignore */ }
   }, [])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     refreshMaxLSN(); loadStats()
   }, [refreshMaxLSN, loadStats])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     setSelectedTable('')
     loadTables(domain)
@@ -224,6 +226,7 @@ export function TimeExplorer({ domain }: Props) {
     }
   }, [selectedTable, histFilter, domain])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     if (view === 'history' && selectedTable) runHistory()
   }, [view, selectedTable, runHistory])

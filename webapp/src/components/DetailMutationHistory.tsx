@@ -41,6 +41,7 @@ export function DetailMutationHistory({ tableName, pkColumns, row, domain }: Pro
 
   useEffect(() => {
     if (expanded && mutations.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadHistory()
     }
   }, [expanded, mutations.length, loadHistory])

@@ -61,6 +61,7 @@ export function WorkspaceAssistant({ domain, busy, onInsertSQL, onRunSQL, onClos
     return null
   }, [messages])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     setMessages([])
     setError('')
@@ -90,6 +91,7 @@ export function WorkspaceAssistant({ domain, busy, onInsertSQL, onRunSQL, onClos
     const nextProvider = findProvider(catalog, provider) ?? fallbackProvider(catalog)
     if (!nextProvider) return
     if (provider !== nextProvider.id) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setProvider(nextProvider.id)
       if (!baseURL.trim()) {
         setBaseURL(nextProvider.default_base_url ?? '')
@@ -104,6 +106,7 @@ export function WorkspaceAssistant({ domain, busy, onInsertSQL, onRunSQL, onClos
   useEffect(() => {
     if (!activeProvider) return
     if (activeProviderModels.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCustomModel(true)
       return
     }

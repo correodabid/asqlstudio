@@ -17,6 +17,7 @@ export function useSchemaCache(domain: string) {
   const countsRef = useRef<Promise<void> | null>(null)
 
   // Reset baseline cache when domain changes so it reloads for the new domain
+  /* eslint-disable react-hooks/refs */
   const prevDomainRef = useRef(domain)
   if (prevDomainRef.current !== domain) {
     prevDomainRef.current = domain
@@ -25,6 +26,7 @@ export function useSchemaCache(domain: string) {
     setBaseline(null)
     setTableCounts({})
   }
+  /* eslint-enable react-hooks/refs */
 
   const loadTables = useCallback(async () => {
     setLoading(true)

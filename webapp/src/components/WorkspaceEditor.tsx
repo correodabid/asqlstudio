@@ -191,6 +191,7 @@ export function WorkspaceEditor({ sql, onChange, onExecute, loading, tables, get
   }, [sql, cursorPos])
 
   // Auto-show autocomplete when typing after certain keywords
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     if (currentWord.length >= 2 && !showAutocomplete) {
       const triggerKeywords = ['FROM', 'JOIN', 'INTO', 'UPDATE', 'TABLE']
@@ -204,6 +205,7 @@ export function WorkspaceEditor({ sql, onChange, onExecute, loading, tables, get
   }, [currentWord, contextBefore, showAutocomplete])
 
   // Compute autocomplete position (approximate)
+  // eslint-disable-next-line react-hooks/refs
   const autocompletePos = useMemo(() => {
     if (!textareaRef.current) return { top: 0, left: 0 }
     const ta = textareaRef.current

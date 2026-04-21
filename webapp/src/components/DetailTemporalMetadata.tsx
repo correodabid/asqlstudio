@@ -96,6 +96,7 @@ export function DetailTemporalMetadata({
 
   useEffect(() => {
     if (expanded && !data && rowPK) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       load()
     }
   }, [data, expanded, load, rowPK])

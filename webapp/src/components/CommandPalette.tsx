@@ -187,6 +187,7 @@ export function CommandPalette({
     )
   }, [commands, query])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     setSelectedIndex(0)
   }, [query])

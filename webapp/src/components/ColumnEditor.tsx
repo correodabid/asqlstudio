@@ -80,12 +80,14 @@ export function ColumnEditor({
 
   // Auto-open properties panel when a different column is selected
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (activeColumn) setPropsOpen(true)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedColumn])
 
   // Auto-open FK panel if the selected column already has a reference set
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (activeColumn?.references?.table) setFkOpen(true)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedColumn])

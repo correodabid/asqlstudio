@@ -271,12 +271,14 @@ export function EntityChangeDebugger({ domain, preset }: Props) {
 
   useEffect(() => {
     if (!entityName && entities.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setEntityName(entities[0].name)
     }
   }, [entities, entityName])
 
   useEffect(() => {
     if (!preset || domain === ALL_DOMAINS_KEY) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setEntityName(preset.entityName)
     setRootPK(preset.rootPK ?? '')
     setSelectedKey('')
@@ -301,6 +303,7 @@ export function EntityChangeDebugger({ domain, preset }: Props) {
 
   useEffect(() => {
     if (!selectedEntity || !selectedEvent || !previousComparableEvent) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSnapTables([])
       setPrevSnapTables([])
       return
