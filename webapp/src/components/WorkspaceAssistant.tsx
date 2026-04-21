@@ -61,11 +61,12 @@ export function WorkspaceAssistant({ domain, busy, onInsertSQL, onRunSQL, onClos
     return null
   }, [messages])
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     setMessages([])
     setError('')
     setQuestion('')
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [domain])
 
   useEffect(() => {

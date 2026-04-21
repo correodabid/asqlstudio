@@ -150,8 +150,8 @@ export function TimelineScrubber({ maxLSN, currentLSN, domain, onScrub, onRefres
   const [jumpInput, setJumpInput] = useState('')
   const [lsnLabelMode, setLsnLabelMode] = useState<'lsn' | 'time'>('lsn')
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setZoomRange(prev => {
       if (prev[1] <= 1 || prev[1] < maxLSN * 0.3) return [1, Math.max(1, maxLSN)]
       return [prev[0], Math.max(prev[1], maxLSN)]
@@ -287,9 +287,9 @@ export function TimelineScrubber({ maxLSN, currentLSN, domain, onScrub, onRefres
     return () => { if (playRef.current) clearInterval(playRef.current) }
   }, [playing, speedIdx, onScrub])
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     if (playing && currentLSN >= maxLSN) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPlaying(false)
     }
   }, [playing, currentLSN, maxLSN])

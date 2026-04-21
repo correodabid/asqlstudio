@@ -191,21 +191,22 @@ export function WorkspaceEditor({ sql, onChange, onExecute, loading, tables, get
   }, [sql, cursorPos])
 
   // Auto-show autocomplete when typing after certain keywords
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     if (currentWord.length >= 2 && !showAutocomplete) {
       const triggerKeywords = ['FROM', 'JOIN', 'INTO', 'UPDATE', 'TABLE']
       if (triggerKeywords.includes(contextBefore) || currentWord.includes('.')) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setShowAutocomplete(true)
       }
     }
     if (currentWord.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setShowAutocomplete(false)
     }
   }, [currentWord, contextBefore, showAutocomplete])
 
   // Compute autocomplete position (approximate)
-  // eslint-disable-next-line react-hooks/refs
+  /* eslint-disable react-hooks/refs */
   const autocompletePos = useMemo(() => {
     if (!textareaRef.current) return { top: 0, left: 0 }
     const ta = textareaRef.current
@@ -218,6 +219,7 @@ export function WorkspaceEditor({ sql, onChange, onExecute, loading, tables, get
     const left = colIdx * charWidth + 48 - ta.scrollLeft // 48 = gutter width + padding
     return { top: Math.max(top, 20), left: Math.max(left, 48) }
   }, [sql, cursorPos])
+  /* eslint-enable react-hooks/refs */
 
   return (
     <div className="sql-editor-container">

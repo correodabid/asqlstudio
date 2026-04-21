@@ -216,8 +216,8 @@ export function SecurityPanel() {
     setAuditEvents(auditResp.events ?? [])
   }
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void refresh().catch((err) => toast(err instanceof Error ? err.message : String(err), 'error'))
   }, [])
 

@@ -119,13 +119,13 @@ export function TimeExplorer({ domain }: Props) {
     } catch { /* ignore */ }
   }, [])
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshMaxLSN(); loadStats()
   }, [refreshMaxLSN, loadStats])
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedTable('')
     loadTables(domain)
   }, [domain, loadTables])
@@ -226,8 +226,8 @@ export function TimeExplorer({ domain }: Props) {
     }
   }, [selectedTable, histFilter, domain])
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (view === 'history' && selectedTable) runHistory()
   }, [view, selectedTable, runHistory])
 

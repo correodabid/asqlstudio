@@ -1401,16 +1401,15 @@ export function ERDiagram({ model, selectedTable, onSelectTable, multiModel, onD
       const key = pos.tableKey || pos.table.name
       return tableToEntityName.get(key) === isolatedEntity
     })
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   }, [isolatedEntity, allTablePositions, tableToEntityName])
 
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const visibleTableKeySet = useMemo(() => {
     const s = new Set<string>()
     for (const p of visibleTablePositions) s.add(p.tableKey || p.table.name)
     return s
   }, [visibleTablePositions])
 
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const visibleRels = useMemo(() => {
     if (isolatedEntity === null) return allRels
     return allRels.filter(rel => {
@@ -1418,6 +1417,7 @@ export function ERDiagram({ model, selectedTable, onSelectTable, multiModel, onD
       const tk = rel.to.tableKey || rel.to.table.name
       return visibleTableKeySet.has(fk) || visibleTableKeySet.has(tk)
     })
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   }, [isolatedEntity, allRels, visibleTableKeySet])
 
   // ── Keyboard: delete selected relationship with Delete/Backspace

@@ -17,8 +17,8 @@ export function useDomains(reloadKey = 0) {
     }
   }, [])
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refresh()
   }, [refresh, reloadKey])
 
