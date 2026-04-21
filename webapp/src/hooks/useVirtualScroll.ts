@@ -28,7 +28,9 @@ export function useVirtualScroll(rowCount: number, enabled: boolean): VirtualScr
       return { startIndex: 0, endIndex: rowCount, offsetY: 0 }
     }
 
+    // eslint-disable-next-line react-hooks/refs
     const containerHeight = containerRef.current?.clientHeight ?? 600
+    // eslint-disable-next-line react-hooks/refs
     const visibleCount = Math.ceil(containerHeight / ROW_HEIGHT)
 
     const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - BUFFER_ROWS)

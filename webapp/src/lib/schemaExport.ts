@@ -77,11 +77,11 @@ export async function exportPNG(svgElement: SVGSVGElement, filename = 'schema.pn
 
     canvas.toBlob((pngBlob) => {
       if (!pngBlob) return
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (isWails()) {
         // In Wails, use native save dialog via Go IPC
         const reader = new FileReader()
         reader.onload = () => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ;(window as any).go.main.App.SaveBinaryFile(filename, reader.result as string)
         }
         reader.readAsDataURL(pngBlob)

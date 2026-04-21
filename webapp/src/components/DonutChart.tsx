@@ -23,17 +23,20 @@ export function DonutChart({ segments, size = 140, strokeWidth = 20, innerLabel 
   const cx = size / 2
   const cy = size / 2
 
-  let accumulated = 0
+  type Arc = DonutSegment & { i: number; pct: number; dashLen: number; dashGap: number; rotation: number }
   const arcs = segments
     .filter(s => s.value > 0)
-    .map((s, i) => {
-      const pct = s.value / total
-      const dashLen = circumference * pct
-      const dashGap = circumference - dashLen
-      const rotation = (accumulated / total) * 360 - 90
-      accumulated += s.value
-      return { ...s, i, pct, dashLen, dashGap, rotation }
-    })
+    .reduce<{ acc: number; items: Arc[] }>(
+      ({ acc, items }, s, i) => {
+        const pct = s.value / total
+        const dashLen = circumference * pct
+        return {
+          acc: acc + s.value,
+          items: [...items, { ...s, i, pct, dashLen, dashGap: circumference - dashLen, rotation: (acc / total) * 360 - 90 }],
+        }
+      },
+      { acc: 0, items: [] },
+    ).items
 
   return (
     <div className="donut-chart-wrap">

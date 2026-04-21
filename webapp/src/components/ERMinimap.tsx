@@ -18,8 +18,6 @@ const MINIMAP_PAD = 6
 export function ERMinimap({ tables, zoom, pan, containerWidth, containerHeight, onPan }: Props) {
   const dragging = useRef(false)
 
-  if (tables.length === 0) return null
-
   // Compute content bounds
   const minX = Math.min(...tables.map(t => t.x))
   const minY = Math.min(...tables.map(t => t.y))
@@ -91,6 +89,8 @@ export function ERMinimap({ tables, zoom, pan, containerWidth, containerHeight, 
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
   }, [minimapToContent, onPan, containerWidth, containerHeight, zoom])
+
+  if (tables.length === 0) return null
 
   return (
     <div className="er-minimap">

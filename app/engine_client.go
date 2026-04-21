@@ -20,11 +20,11 @@ import (
 	api "github.com/correodabid/asql/pkg/adminapi"
 )
 
-	type importedReadDirective struct {
-		SourceDomain string
-		SourceTable  string
-		Alias        string
-	}
+type importedReadDirective struct {
+	SourceDomain string
+	SourceTable  string
+	Alias        string
+}
 
 // engineInvoker abstracts pgwire engine calls used by schema_apply.go and the studio handlers.
 type engineInvoker interface {

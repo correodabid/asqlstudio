@@ -297,8 +297,8 @@ export function TimelineScrubber({ maxLSN, currentLSN, domain, onScrub, onRefres
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement
       if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') return
-      if (e.key === 'ArrowLeft') { e.preventDefault(); e.shiftKey ? jumpToStart() : stepToPrevCommit() }
-      else if (e.key === 'ArrowRight') { e.preventDefault(); e.shiftKey ? jumpToEnd() : stepToNextCommit() }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); if (e.shiftKey) jumpToStart(); else stepToPrevCommit() }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); if (e.shiftKey) jumpToEnd(); else stepToNextCommit() }
       else if (e.key === ' ') { e.preventDefault(); togglePlayback() }
     }
     window.addEventListener('keydown', onKey)

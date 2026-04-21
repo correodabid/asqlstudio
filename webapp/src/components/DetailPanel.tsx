@@ -38,8 +38,6 @@ export function DetailPanel({
   onLoadBaseline,
 }: Props) {
   const row = result.rows[selectedRow]
-  if (!row) return null
-
   const fkColumnSet = new Set(foreignKeys.map((fk) => fk.column))
 
   // Lazy-load baseline on first open
@@ -47,6 +45,8 @@ export function DetailPanel({
     onLoadBaseline()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  if (!row) return null
 
   return (
     <div className="detail-panel">

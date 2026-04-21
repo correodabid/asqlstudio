@@ -8,6 +8,7 @@ type JsonNodeProps = {
 
 function JsonNode({ data, depth = 0, keyName }: JsonNodeProps) {
   const [collapsed, setCollapsed] = useState(depth > 1)
+  const toggle = useCallback(() => setCollapsed((c) => !c), [])
 
   const renderValue = (value: unknown): React.ReactNode => {
     if (value === null) return <span className="jv-null">null</span>
@@ -38,8 +39,6 @@ function JsonNode({ data, depth = 0, keyName }: JsonNodeProps) {
       </div>
     )
   }
-
-  const toggle = useCallback(() => setCollapsed((c) => !c), [])
 
   return (
     <div className="jv-node">

@@ -101,10 +101,8 @@ export function WorkspaceResults({
   const vs = useVirtualScroll(rowCount, virtualEnabled)
 
   // Reset compare selection whenever the result set changes
-  useEffect(() => {
-    setCompareRows([])
-    setShowRowDiff(false)
-  }, [result])
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setCompareRows([]); setShowRowDiff(false) }, [result])
 
   const handleCompareClick = useCallback((i: number, e: React.MouseEvent) => {
     e.stopPropagation()

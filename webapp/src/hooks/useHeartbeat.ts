@@ -32,6 +32,7 @@ export function useHeartbeat(intervalMs = 10000) {
   }, [])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     check()
     timerRef.current = setInterval(check, intervalMs)
     return () => clearInterval(timerRef.current)

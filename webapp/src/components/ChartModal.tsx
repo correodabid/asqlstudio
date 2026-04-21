@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { IconX } from './Icons'
 
 type ChartModalProps = {
@@ -51,16 +51,15 @@ export function ChartModal({ data, title, color, formatValue, onClose }: ChartMo
   const avg = data.reduce((a, b) => a + b, 0) / data.length
   const gradientId = `chart-grad-${title.replace(/\s+/g, '')}`
 
-  const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     const svg = svgRef.current
     if (!svg) return
     const rect = svg.getBoundingClientRect()
     const mouseX = ((e.clientX - rect.left) / rect.width) * W
-    // Find closest data point
     const idx = Math.round(((mouseX - padL) / chartW) * (data.length - 1))
     if (idx < 0 || idx >= data.length) { setHover(null); return }
     setHover({ x: toX(idx), y: toY(data[idx]), value: data[idx], idx })
-  }, [data, chartW])
+  }
 
   return (
     <div className="chart-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>

@@ -115,7 +115,7 @@ export function useDashboard() {
   const [engineStats, setEngineStats] = useState<EngineStats>(emptyEngineStats)
   const [prevEngineStats, setPrevEngineStats] = useState<EngineStats>(emptyEngineStats)
   const [statsHistory, setStatsHistory] = useState<EngineStats[]>([])
-  const [lastRefresh, setLastRefresh] = useState<number>(Date.now())
+  const [lastRefresh, setLastRefresh] = useState<number>(() => Date.now())
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [replicationLagSupported, setReplicationLagSupported] = useState(true)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -190,9 +190,8 @@ export function useDashboard() {
     setLastRefresh(Date.now())
   }, [replicationLagSupported])
 
-  useEffect(() => {
-    refresh()
-  }, [refresh])
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { refresh() }, [refresh])
 
   useEffect(() => {
     if (autoRefresh) {

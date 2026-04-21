@@ -136,10 +136,9 @@ export function SQLAutocomplete({
     return results.slice(0, 20) // limit to 20 suggestions
   }, [currentWord, contextBefore, tables, getTableSchema, sql, cursorPos])
 
-  // Reset selection when suggestions change
-  useEffect(() => {
-    setSelectedIndex(0)
-  }, [suggestions])
+  // Reset selection when suggestions change — intentional synchronous state reset
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setSelectedIndex(0) }, [suggestions])
 
   // Auto-scroll selected item into view
   useEffect(() => {

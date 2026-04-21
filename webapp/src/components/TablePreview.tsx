@@ -20,6 +20,7 @@ export function TablePreview({ tableName, domain, x, y }: Props) {
 
   useEffect(() => {
     mounted.current = true
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true)
 
     const sql = `SELECT * FROM ${tableName} LIMIT 5;`
