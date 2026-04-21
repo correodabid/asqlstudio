@@ -48,14 +48,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "npm"
+          cache-dependency-path: webapp/package-lock.json
 
       - name: Install dependencies
-        # The package-lock.json is generated on macOS arm64 and only records
-        # @rolldown/binding-darwin-arm64. Even npm install respects the lockfile
-        # and skips the linux-x64 binding (npm bug: github.com/npm/cli/issues/4828).
-        # Deleting the lockfile before install lets npm resolve the correct
-        # platform-specific optional binding for the CI runner.
-        run: cd webapp && rm -f package-lock.json && npm install
+        run: cd webapp && npm ci
 
       - name: Lint
         run: cd webapp && npm run lint
