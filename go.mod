@@ -4,7 +4,7 @@ go 1.25.9
 
 require (
 	github.com/correodabid/asql v0.0.0-20260420070420-a8af3e2a158e
-	github.com/jackc/pgx/v5 v5.9.0
+	github.com/jackc/pgx/v5 v5.9.2
 	github.com/wailsapp/wails/v2 v2.12.0
 )
 
