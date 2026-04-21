@@ -50,11 +50,12 @@ jobs:
           node-version: "20"
 
       - name: Install dependencies
-        # npm ci fails on Linux x64 with Vite 8 / rolldown because the
-        # package-lock.json generated on macOS arm64 omits the linux-x64
-        # optional native binding (npm bug: github.com/npm/cli/issues/4828).
-        # npm install resolves the correct platform binding at install time.
-        run: cd webapp && npm install
+        # The package-lock.json is generated on macOS arm64 and only records
+        # @rolldown/binding-darwin-arm64. Even npm install respects the lockfile
+        # and skips the linux-x64 binding (npm bug: github.com/npm/cli/issues/4828).
+        # Deleting the lockfile before install lets npm resolve the correct
+        # platform-specific optional binding for the CI runner.
+        run: cd webapp && rm -f package-lock.json && npm install
 
       - name: Lint
         run: cd webapp && npm run lint
