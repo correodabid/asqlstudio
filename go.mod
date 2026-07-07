@@ -5,7 +5,7 @@ go 1.25.9
 require (
 	github.com/correodabid/asql v0.0.0-20260420070420-a8af3e2a158e
 	github.com/jackc/pgx/v5 v5.9.2
-	github.com/wailsapp/wails/v2 v2.12.0
+	github.com/wailsapp/wails/v2 v2.13.0
 )
 
 require (
@@ -37,11 +37,11 @@ require (
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/wailsapp/go-webview2 v1.0.22 // indirect
 	github.com/wailsapp/mimetype v1.4.1 // indirect
-	golang.org/x/crypto v0.46.0 // indirect
-	golang.org/x/net v0.48.0 // indirect
-	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.41.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
+	golang.org/x/crypto v0.51.0 // indirect
+	golang.org/x/net v0.54.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
+	golang.org/x/sys v0.44.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217 // indirect
 	google.golang.org/grpc v1.79.3 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
