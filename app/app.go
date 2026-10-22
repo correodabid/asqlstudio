@@ -1495,13 +1495,14 @@ func (a *App) SchemaTables(domain string) (map[string]interface{}, error) {
 			continue
 		}
 		for _, t := range d.Tables {
-			var pks []string
-			for _, c := range t.Columns {
-				if c.PrimaryKey {
-					pks = append(pks, c.Name)
-				}
-			}
-			tables = append(tables, schemaTableInfo{Name: t.Name, PKColumns: pks})
+			tables = append(tables, schemaTableInfo{
+				Name: t.Name,
+				// The whole key, in key order: a composite key is reported on the
+				// table and not on its columns.
+				PKColumns:  snapshotPrimaryKeyColumns(t),
+				AppendOnly: t.AppendOnly,
+				Verifiable: t.Verifiable,
+			})
 		}
 	}
 

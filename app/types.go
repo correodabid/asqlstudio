@@ -200,8 +200,10 @@ type connectionSwitchResponse struct {
 }
 
 type schemaTableInfo struct {
-	Name      string   `json:"name"`
-	PKColumns []string `json:"pk_columns"`
+	Name       string   `json:"name"`
+	PKColumns  []string `json:"pk_columns"`
+	AppendOnly bool     `json:"append_only,omitempty"`
+	Verifiable bool     `json:"verifiable,omitempty"`
 }
 
 type schemaTablesResponse struct {
