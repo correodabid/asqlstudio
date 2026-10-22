@@ -32,8 +32,9 @@ function resolveRootPK(
   foreignKeys: { column: string; refTable: string; refColumn: string }[],
 ): string | null {
   if (tableName === rootTable) {
-    // Current table IS the root table — use PK directly
-    if (pkColumns.length === 0) return null
+    // Current table IS the root table — use PK directly. A composite key is not
+    // addressable this way: its first column alone is not the row's identity.
+    if (pkColumns.length !== 1) return null
     const val = row[pkColumns[0]]
     if (val === null || val === undefined) return null
     return String(val)

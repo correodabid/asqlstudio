@@ -23,7 +23,14 @@ type TimelineCommitMutation = {
 type TimelineCommit = {
   lsn: number
   tx_id: string
+  // timestamp is the engine's logical counter, not a date.
   timestamp: number
+  // commit_time is the commit's wall-clock time (RFC 3339), the one
+  // AS OF TIMESTAMP resolves against. It is absent for commits written before
+  // the engine recorded commit times.
+  commit_time?: string
+  commit_time_micros?: number
+  mutation_count?: number
   tables: TimelineCommitMutation[]
 }
 
@@ -64,14 +71,13 @@ const DEFAULT_SPEED_IDX = 1
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function formatTimestamp(ts: number): string {
-  if (!ts) return ''
-  const d = new Date(ts / 1_000_000)
-  if (!isNaN(d.getTime()) && d.getFullYear() > 2000) {
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-  }
-  const d2 = new Date(ts)
-  return isNaN(d2.getTime()) ? '' : d2.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+// formatCommitTime renders a commit's wall-clock time. The engine's logical
+// timestamp is a counter, not a date, so only commit_time can be shown as one.
+function formatCommitTime(commit?: TimelineCommit): string {
+  if (!commit?.commit_time) return ''
+  const when = new Date(commit.commit_time)
+  if (isNaN(when.getTime())) return ''
+  return when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
 function isDDLCommit(c: TimelineCommit): boolean {
@@ -389,9 +395,10 @@ export function TimelineScrubber({ maxLSN, currentLSN, domain, onScrub, onRefres
     }
   }
 
+  const currentCommitTime = formatCommitTime(currentCommit)
   const currentLabel = lsnLabelMode === 'lsn'
     ? `LSN ${currentLSN.toLocaleString()}`
-    : (currentCommit?.timestamp ? formatTimestamp(currentCommit.timestamp) : `LSN ${currentLSN.toLocaleString()}`)
+    : (currentCommitTime || `LSN ${currentLSN.toLocaleString()}`)
 
   const mmViewLeft = ((visibleStart - 1) / Math.max(1, maxLSN - 1)) * 100
   const mmViewWidth = ((visibleEnd - visibleStart) / Math.max(1, maxLSN - 1)) * 100
@@ -618,8 +625,8 @@ export function TimelineScrubber({ maxLSN, currentLSN, domain, onScrub, onRefres
               <>
                 <div className="tl-tooltip-header">
                   <span className="tl-tooltip-lsn mono">LSN {hoveredItem.commit.lsn.toLocaleString()}</span>
-                  {hoveredItem.commit.timestamp > 0 && (
-                    <span className="tl-tooltip-time">{formatTimestamp(hoveredItem.commit.timestamp)}</span>
+                  {formatCommitTime(hoveredItem.commit) !== '' && (
+                    <span className="tl-tooltip-time">{formatCommitTime(hoveredItem.commit)}</span>
                   )}
                   {isDDLCommit(hoveredItem.commit) && (
                     <span className="tl-tooltip-badge tl-tooltip-ddl-badge">DDL</span>

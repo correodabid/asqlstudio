@@ -46,6 +46,19 @@ export async function api<T>(path: string, _method = 'GET', body?: unknown): Pro
       return App.TemporalLookup(b) as Promise<T>
     case '/api/explain':
       return App.Explain(b) as Promise<T>
+    case '/api/resolve-timestamp':
+      return App.ResolveTimestamp(b.timestamp ?? '') as Promise<T>
+    // ── Verifiable history ─────────────────────────
+    case '/api/ledger/status':
+      return App.LedgerStatus() as Promise<T>
+    case '/api/ledger/digest':
+      return App.LedgerDigest(Number(b.lsn ?? 0)) as Promise<T>
+    case '/api/ledger/prove-consistency':
+      return App.LedgerProveConsistency(Number(b.from_lsn ?? 0), Number(b.to_lsn ?? 0)) as Promise<T>
+    case '/api/ledger/prove-rows':
+      return App.LedgerProveRows(b) as Promise<T>
+    case '/api/ledger/attest-query':
+      return App.AttestQuery(b) as Promise<T>
     case '/api/assistant/catalog':
       return App.AssistantLLMCatalog() as Promise<T>
     case '/api/assistant/query':

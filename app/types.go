@@ -48,10 +48,14 @@ type txRequest struct {
 }
 
 type timeTravelRequest struct {
-	SQL              string   `json:"sql"`
-	Domains          []string `json:"domains"`
-	LSN              uint64   `json:"lsn,omitempty"`
-	LogicalTimestamp uint64   `json:"logical_timestamp,omitempty"`
+	SQL     string   `json:"sql"`
+	Domains []string `json:"domains"`
+	LSN     uint64   `json:"lsn,omitempty"`
+	// Timestamp reads the query at a wall-clock instant (ISO-8601), the time
+	// commits record from ADR 0007 on. It is exclusive with LSN and
+	// LogicalTimestamp.
+	Timestamp        string `json:"timestamp,omitempty"`
+	LogicalTimestamp uint64 `json:"logical_timestamp,omitempty"`
 }
 
 type rowHistoryRequest struct {
@@ -200,8 +204,10 @@ type connectionSwitchResponse struct {
 }
 
 type schemaTableInfo struct {
-	Name      string   `json:"name"`
-	PKColumns []string `json:"pk_columns"`
+	Name       string   `json:"name"`
+	PKColumns  []string `json:"pk_columns"`
+	AppendOnly bool     `json:"append_only,omitempty"`
+	Verifiable bool     `json:"verifiable,omitempty"`
 }
 
 type schemaTablesResponse struct {

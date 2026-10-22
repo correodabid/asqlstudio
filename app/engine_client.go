@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	api "github.com/correodabid/asql/pkg/adminapi"
@@ -162,6 +164,18 @@ func pgxRowsToMaps(rows pgx.Rows) ([]map[string]interface{}, error) {
 	return result, rows.Err()
 }
 
+// pgxTypeMap decodes binary column values. It is read-only after
+// initialization, so sharing one map across connections is safe.
+var pgxTypeMap = pgtype.NewMap()
+
+// decodeRawPGXRow turns one row into name → value, holding every value as the
+// text the engine sends in text format.
+//
+// Over the extended query protocol pgx asks for binary (format code 1) for
+// every type it knows, so an INT, FLOAT, BOOL or TIMESTAMP column arrives as
+// raw bytes and has to be decoded before it reads as text. Taking the bytes as
+// a string turns 42 into "\x00\x00\x00\x00\x00\x00\x00*", which is what the
+// whole studio then displays and what toUint64 and friends fail to parse.
 func decodeRawPGXRow(fds []pgconn.FieldDescription, raw [][]byte) map[string]interface{} {
 	row := make(map[string]interface{}, len(fds))
 	for i, fd := range fds {
@@ -169,9 +183,58 @@ func decodeRawPGXRow(fds []pgconn.FieldDescription, raw [][]byte) map[string]int
 			row[string(fd.Name)] = nil
 			continue
 		}
-		row[string(fd.Name)] = string(raw[i])
+		row[string(fd.Name)] = decodePGXValue(fd, raw[i])
 	}
 	return row
+}
+
+func decodePGXValue(fd pgconn.FieldDescription, raw []byte) interface{} {
+	if fd.Format == pgtype.TextFormatCode {
+		return string(raw)
+	}
+	dataType, ok := pgxTypeMap.TypeForOID(fd.DataTypeOID)
+	if !ok || dataType.Codec == nil {
+		// An OID pgx does not know: hand the bytes over as they arrived rather
+		// than guess at them.
+		return string(raw)
+	}
+	value, err := dataType.Codec.DecodeValue(pgxTypeMap, fd.DataTypeOID, fd.Format, raw)
+	if err != nil {
+		return string(raw)
+	}
+	return formatPGXValue(value)
+}
+
+// formatPGXValue renders a decoded value the way the engine renders it in text
+// format, so a column reads the same whichever format it arrived in.
+func formatPGXValue(value interface{}) interface{} {
+	switch typed := value.(type) {
+	case nil:
+		return nil
+	case string:
+		return typed
+	case []byte:
+		return string(typed)
+	case bool:
+		if typed {
+			return "t"
+		}
+		return "f"
+	case int16:
+		return strconv.FormatInt(int64(typed), 10)
+	case int32:
+		return strconv.FormatInt(int64(typed), 10)
+	case int64:
+		return strconv.FormatInt(typed, 10)
+	case float32:
+		return strconv.FormatFloat(float64(typed), 'g', -1, 32)
+	case float64:
+		return strconv.FormatFloat(typed, 'g', -1, 64)
+	case time.Time:
+		return typed.UTC().Format("2006-01-02 15:04:05.999999")
+	default:
+		return fmt.Sprint(typed)
+	}
 }
 
 // randomID generates a short random hex string suitable for use as a tx_id.
@@ -567,7 +630,7 @@ func (c *engineClient) SchemaSnapshot(ctx context.Context, req *api.SchemaSnapsh
 	return &resp, nil
 }
 
-func (c *engineClient) TimelineCommits(ctx context.Context, req *api.TimelineCommitsRequest) (*api.TimelineCommitsResponse, error) {
+func (c *engineClient) TimelineCommits(ctx context.Context, req *timelineCommitsRequest) (*timelineCommitsResponse, error) {
 	var parts []string
 	if req.FromLSN != 0 {
 		parts = append(parts, fmt.Sprintf("from_lsn >= %d", req.FromLSN))
@@ -593,15 +656,23 @@ func (c *engineClient) TimelineCommits(ctx context.Context, req *api.TimelineCom
 	if err != nil {
 		return nil, fmt.Errorf("collect timeline commits: %w", err)
 	}
-	commits := make([]api.TimelineCommitEntry, 0, len(resultRows))
+	commits := make([]timelineCommit, 0, len(resultRows))
 	for _, row := range resultRows {
-		commits = append(commits, api.TimelineCommitEntry{
-			LSN:       toUint64(row["lsn"]),
-			TxID:      toString(row["tx_id"]),
-			Timestamp: toUint64(row["timestamp"]),
-		})
+		commit := timelineCommit{
+			LSN:           toUint64(row["lsn"]),
+			TxID:          toString(row["tx_id"]),
+			Timestamp:     toUint64(row["timestamp"]),
+			MutationCount: toUint64(row["mutation_count"]),
+		}
+		// commit_time is NULL on a node that predates ADR 0007, and absent
+		// altogether on an engine older than v0.1.0.
+		if commitTime := parseCommitTime(toString(row["commit_time"])); !commitTime.IsZero() {
+			commit.CommitTime = commitTime.Format(time.RFC3339Nano)
+			commit.CommitTimeMicros = commitTime.UnixMicro()
+		}
+		commits = append(commits, commit)
 	}
-	return &api.TimelineCommitsResponse{Commits: commits}, nil
+	return &timelineCommitsResponse{Commits: commits}, nil
 }
 
 func (c *engineClient) ScanStrategyStats(ctx context.Context) (*api.ScanStrategyStatsResponse, error) {
@@ -813,6 +884,22 @@ type temporalLookupResult struct {
 	EntityVersionLSN    *uint64
 }
 
+// errTemporalHelperUnsupported reports a temporal helper the engine refuses for
+// this table — a composite primary key, or none at all. The engine answers
+// 0A000 for that from v0.7.0 on, where it used to answer NULL and read as a row
+// that simply was not there.
+var errTemporalHelperUnsupported = errors.New("the engine's temporal helpers take a single primary key value, so they do not apply to a table with a composite key or none")
+
+// temporalHelperUnsupported reports the 0A000 the engine answers for a helper
+// it does not support here.
+func temporalHelperUnsupported(err error) bool {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "0A000"
+	}
+	return false
+}
+
 func (c *engineClient) TemporalLookup(ctx context.Context, req temporalLookupRequest) (*temporalLookupResult, error) {
 	if strings.TrimSpace(req.Domain) == "" {
 		return nil, fmt.Errorf("domain is required")
@@ -836,15 +923,21 @@ func (c *engineClient) TemporalLookup(ctx context.Context, req temporalLookupReq
 
 	rowLSN, err := c.queryOptionalUint64(ctx, fmt.Sprintf("SELECT row_lsn('%s', '%s')", tableRef, pk))
 	if err != nil {
+		if temporalHelperUnsupported(err) {
+			return nil, errTemporalHelperUnsupported
+		}
 		return nil, err
 	}
 	result.RowLSN = rowLSN
 
 	resolveReference, err := c.queryOptionalUint64(ctx, fmt.Sprintf("SELECT resolve_reference('%s', '%s')", tableRef, pk))
-	if err != nil {
-		result.ResolveReferenceErr = err.Error()
-	} else {
+	switch {
+	case err == nil:
 		result.ResolveReference = resolveReference
+	case temporalHelperUnsupported(err):
+		result.ResolveReferenceErr = errTemporalHelperUnsupported.Error()
+	default:
+		result.ResolveReferenceErr = err.Error()
 	}
 
 	if strings.TrimSpace(req.EntityName) != "" && strings.TrimSpace(req.EntityRootPK) != "" {
@@ -854,12 +947,18 @@ func (c *engineClient) TemporalLookup(ctx context.Context, req temporalLookupReq
 
 		entityVersion, err := c.queryOptionalUint64(ctx, fmt.Sprintf("SELECT entity_version('%s', '%s', '%s')", domain, entity, rootPK))
 		if err != nil {
+			if temporalHelperUnsupported(err) {
+				return nil, errTemporalHelperUnsupported
+			}
 			return nil, err
 		}
 		result.EntityVersion = entityVersion
 
 		entityHeadLSN, err := c.queryOptionalUint64(ctx, fmt.Sprintf("SELECT entity_head_lsn('%s', '%s', '%s')", domain, entity, rootPK))
 		if err != nil {
+			if temporalHelperUnsupported(err) {
+				return nil, errTemporalHelperUnsupported
+			}
 			return nil, err
 		}
 		result.EntityHeadLSN = entityHeadLSN
@@ -1009,4 +1108,87 @@ func toBool(v interface{}) bool {
 		return x == "t" || x == "true" || x == "1"
 	}
 	return false
+}
+
+// ── Verifiable history: ledger digests, proofs and result attestations ───────
+//
+// These read the asql_admin virtual tables the node answers outside the engine,
+// so nothing they return reaches the WAL. All four need the ADMIN privilege,
+// and the proof and attestation tables additionally need the node to run with
+// a signed ledger (prove_rows also needs a state key).
+
+// LedgerDigest returns the ledger digest covering lsn, or the latest one when
+// lsn is 0. It returns nil when the node keeps no digests.
+func (c *engineClient) LedgerDigest(ctx context.Context, lsn uint64) (map[string]interface{}, error) {
+	query := "SELECT * FROM asql_admin.ledger_digest"
+	if lsn > 0 {
+		query += fmt.Sprintf(" WHERE lsn >= %d", lsn)
+	}
+	rows, err := c.pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("ledger digest: %w", err)
+	}
+	result, err := pgxRowsToMaps(rows)
+	if err != nil {
+		return nil, fmt.Errorf("collect ledger digest: %w", err)
+	}
+	if len(result) == 0 {
+		return nil, nil
+	}
+	return result[0], nil
+}
+
+// ProveConsistency proves that the log signed at toLSN (the latest when 0)
+// extends the log signed at fromLSN, without revealing any record.
+func (c *engineClient) ProveConsistency(ctx context.Context, fromLSN, toLSN uint64) (map[string]interface{}, error) {
+	query := fmt.Sprintf("SELECT * FROM asql_admin.prove_consistency WHERE from_lsn = %d", fromLSN)
+	if toLSN > 0 {
+		query += fmt.Sprintf(" AND to_lsn = %d", toLSN)
+	}
+	rows, err := c.pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("prove consistency: %w", err)
+	}
+	result, err := pgxRowsToMaps(rows)
+	if err != nil {
+		return nil, fmt.Errorf("collect consistency proof: %w", err)
+	}
+	if len(result) == 0 {
+		return nil, fmt.Errorf("prove consistency: the node returned no proof")
+	}
+	return result[0], nil
+}
+
+// ProveRows proves that the state signed at lsn (the latest digest when 0) held
+// the rows cited by keys, a JSON list of {domain, table, pk} entries.
+func (c *engineClient) ProveRows(ctx context.Context, keys string, lsn uint64) (map[string]interface{}, error) {
+	query := fmt.Sprintf("SELECT * FROM asql_admin.prove_rows WHERE keys = '%s'", pgEscape(keys))
+	if lsn > 0 {
+		query += fmt.Sprintf(" AND lsn = %d", lsn)
+	}
+	result, err := c.queryWithDomainsMode(ctx, nil, query, pgx.QueryExecModeSimpleProtocol)
+	if err != nil {
+		return nil, fmt.Errorf("prove rows: %w", err)
+	}
+	if len(result) == 0 {
+		return nil, fmt.Errorf("prove rows: the node returned no proof")
+	}
+	return result[0], nil
+}
+
+// AttestQuery runs a SELECT at a committed LSN (the latest when 0) and returns
+// its rows together with a signed attestation binding them to the ledger chain.
+func (c *engineClient) AttestQuery(ctx context.Context, sql string, domains []string, lsn uint64) (map[string]interface{}, error) {
+	query := fmt.Sprintf("SELECT * FROM asql_admin.attest_query WHERE sql = '%s'", pgEscape(sql))
+	if lsn > 0 {
+		query += fmt.Sprintf(" AND lsn = %d", lsn)
+	}
+	result, err := c.queryWithDomainsMode(ctx, domains, query, pgx.QueryExecModeSimpleProtocol)
+	if err != nil {
+		return nil, fmt.Errorf("attest query: %w", err)
+	}
+	if len(result) == 0 {
+		return nil, fmt.Errorf("attest query: the node returned no attestation")
+	}
+	return result[0], nil
 }

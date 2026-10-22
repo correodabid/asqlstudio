@@ -32,8 +32,8 @@ export async function downloadFile(content: string, filename: string, _mimeType:
   // Use the Go IPC method that opens a native Save dialog.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const w = window as any
-  if (typeof w?.go?.main?.App?.SaveTextFile === 'function') {
-    await w.go.main.App.SaveTextFile(filename, content)
+  if (typeof w?.go?.studioapp?.App?.SaveTextFile === 'function') {
+    await w.go.studioapp.App.SaveTextFile(filename, content)
     return
   }
   // Fallback: standard browser download
