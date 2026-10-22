@@ -14,6 +14,10 @@ export function Begin(arg1) {
   return window['go']['studioapp']['App']['Begin'](arg1);
 }
 
+export function AttestQuery(arg1) {
+  return window['go']['studioapp']['App']['AttestQuery'](arg1);
+}
+
 export function ClusterDiagnostics() {
   return window['go']['studioapp']['App']['ClusterDiagnostics']();
 }
@@ -78,6 +82,22 @@ export function Health() {
   return window['go']['studioapp']['App']['Health']();
 }
 
+export function LedgerDigest(arg1) {
+  return window['go']['studioapp']['App']['LedgerDigest'](arg1);
+}
+
+export function LedgerProveConsistency(arg1, arg2) {
+  return window['go']['studioapp']['App']['LedgerProveConsistency'](arg1, arg2);
+}
+
+export function LedgerProveRows(arg1) {
+  return window['go']['studioapp']['App']['LedgerProveRows'](arg1);
+}
+
+export function LedgerStatus() {
+  return window['go']['studioapp']['App']['LedgerStatus']();
+}
+
 export function PickFixtureExportFile(arg1) {
   return window['go']['studioapp']['App']['PickFixtureExportFile'](arg1);
 }
@@ -136,6 +156,10 @@ export function ReplicationLastLSN() {
 
 export function Rollback(arg1) {
   return window['go']['studioapp']['App']['Rollback'](arg1);
+}
+
+export function ResolveTimestamp(arg1) {
+  return window['go']['studioapp']['App']['ResolveTimestamp'](arg1);
 }
 
 export function RowHistory(arg1) {

@@ -2008,6 +2008,81 @@ select.editor-input {
   flex-shrink: 0;
 }
 
+/* Primary key editor — the key is one ordered list of columns */
+.ce-key-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ce-key-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+}
+
+.ce-key-row.on {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.ce-key-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  min-width: 0;
+}
+
+.ce-key-row.on .ce-key-toggle {
+  color: var(--text-accent);
+}
+
+.ce-key-toggle span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ce-key-toggle svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+.ce-key-order {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.ce-key-position {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-accent);
+  min-width: 12px;
+  text-align: center;
+}
+
+.editor-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.editor-hint.warn {
+  color: var(--text-warning);
+}
+
 /* FK editor */
 .editor-fk {
   display: flex;
@@ -15906,4 +15981,206 @@ tr:hover .te-expand-btn { opacity: 1; }
   gap: 6px;
   font-size: 11px;
   color: var(--text-secondary);
+}
+
+/* ── Verifiable history panel ─────────────────────────────── */
+
+/* A KPI whose value is a word rather than a number needs to fit. */
+.kpi-value-text {
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+
+.ledger-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ledger-note.warn {
+  border-color: var(--text-warning);
+  color: var(--text-warning);
+}
+
+.ledger-note svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.ledger-help {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.ledger-help code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.ledger-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.ledger-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ledger-fact-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.ledger-fact-value {
+  font-size: 12px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ledger-field {
+  min-width: 180px;
+}
+
+.ledger-key-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.ledger-key-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.ledger-result {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.ledger-result-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--bg-input);
+  border-bottom: 1px solid var(--border);
+}
+
+.ledger-result-label {
+  flex: 1;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.ledger-result-body {
+  max-height: 320px;
+  overflow: auto;
+  padding: 8px 10px;
+}
+
+/* Verifiable groups are shown, not edited: they cannot be undone. */
+.ce-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ce-group-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-secondary);
+  min-width: 0;
+}
+
+.ce-group-row svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  color: var(--text-accent);
+}
+
+.ce-group-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ledger-field-narrow {
+  min-width: 128px;
+  max-width: 150px;
+}
+
+/* Time explorer: reading at a wall-clock instant */
+.te-asof-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.te-asof-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.te-asof-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.te-asof-input {
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+}
+
+.te-asof-result {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.te-asof-error {
+  font-size: 11px;
+  color: var(--text-warning);
 }

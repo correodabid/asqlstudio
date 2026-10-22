@@ -8,8 +8,9 @@ import { EntityExplorer } from './components/EntityExplorer'
 import { DesignerWorkbench } from './components/DesignerWorkbench'
 import { ERDiagram } from './components/ERDiagram'
 import { FixturePanel } from './components/FixturePanel'
-import { IconActivity, IconDatabase, IconDownload, IconGrid, IconKey, IconLayers, IconMoon, IconRefresh, IconSchema, IconShield, IconSQLDoc, IconSun, IconTerminal, IconTimeline, IconZap } from './components/Icons'
+import { IconActivity, IconDatabase, IconDownload, IconGrid, IconKey, IconLayers, IconMoon, IconRefresh, IconSchema, IconShield, IconShieldCheck, IconSQLDoc, IconSun, IconTerminal, IconTimeline, IconZap } from './components/Icons'
 import { KeyboardShortcuts } from './components/KeyboardShortcuts'
+import { LedgerPanel } from './components/LedgerPanel'
 import { RecoveryPanel } from './components/RecoveryPanel'
 import { SecurityPanel } from './components/SecurityPanel'
 import { SchemaPanel } from './components/SchemaPanel'
@@ -54,6 +55,7 @@ const GROUPS: GroupDef[] = [
       { id: 'dashboard', label: 'Dashboard', icon: <IconGrid /> },
       { id: 'cluster',   label: 'Cluster',   icon: <IconShield /> },
       { id: 'security',  label: 'Security',  icon: <IconKey /> },
+      { id: 'ledger',    label: 'Ledger',    icon: <IconShieldCheck /> },
       { id: 'recovery',  label: 'Recovery',  icon: <IconRefresh /> },
       { id: 'fixtures',  label: 'Fixtures',  icon: <IconDownload /> },
     ],
@@ -506,6 +508,8 @@ function App() {
             {activeTab === 'entity-changes' && (
               <EntityChangeDebugger domain={model.domain || 'default'} preset={entityChangePreset} />
             )}
+
+            {activeTab === 'ledger' && <LedgerPanel />}
 
             {activeTab === 'recovery' && <RecoveryPanel />}
           </div>
