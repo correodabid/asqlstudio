@@ -1069,15 +1069,30 @@ func (a *App) TimeTravel(req timeTravelRequest) (map[string]interface{}, error) 
 	if strings.TrimSpace(req.SQL) == "" {
 		return nil, fmt.Errorf("sql is required")
 	}
-	if req.LSN == 0 && req.LogicalTimestamp == 0 {
-		return nil, fmt.Errorf("lsn or logical_timestamp is required")
+	timestamp := strings.TrimSpace(req.Timestamp)
+	if req.LSN == 0 && req.LogicalTimestamp == 0 && timestamp == "" {
+		return nil, fmt.Errorf("lsn, timestamp or logical_timestamp is required")
+	}
+
+	// A wall-clock instant is read by the engine from an AS OF TIMESTAMP clause
+	// on the query itself, not from the as-of comment the LSN path uses.
+	sql := req.SQL
+	if timestamp != "" {
+		if req.LSN != 0 || req.LogicalTimestamp != 0 {
+			return nil, fmt.Errorf("a query is read at one boundary: pass timestamp, lsn or logical_timestamp, not more than one")
+		}
+		rewritten, err := applyAsOfTimestamp(sql, timestamp)
+		if err != nil {
+			return nil, err
+		}
+		sql = rewritten
 	}
 
 	ctx, cancel := a.reqCtx()
 	defer cancel()
 
 	resp, err := a.engine.TimeTravelQuery(ctx, &api.TimeTravelQueryRequest{
-		SQL:              req.SQL,
+		SQL:              sql,
 		Domains:          req.Domains,
 		LSN:              req.LSN,
 		LogicalTimestamp: req.LogicalTimestamp,
@@ -1306,7 +1321,7 @@ func (a *App) EngineStats() (map[string]interface{}, error) {
 }
 
 // TimelineCommits returns commits from the WAL timeline.
-func (a *App) TimelineCommits(req api.TimelineCommitsRequest) (map[string]interface{}, error) {
+func (a *App) TimelineCommits(req timelineCommitsRequest) (map[string]interface{}, error) {
 	ctx, cancel := a.reqCtx()
 	defer cancel()
 

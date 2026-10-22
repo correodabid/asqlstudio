@@ -80,3 +80,52 @@ func TestRowDecodingMatchesTextFormat(t *testing.T) {
 		}
 	}
 }
+
+// TestNumericAdminColumnsParse covers what the decoding bug broke everywhere
+// else: the admin tables the dashboard reads hold their numbers in binary
+// columns, and toUint64 has to get a number out of them.
+func TestNumericAdminColumnsParse(t *testing.T) {
+	ctx := context.Background()
+	addr := startStudioPGWireServer(t, "")
+	client := newEngineClient(addr, "")
+	t.Cleanup(client.Close)
+
+	begin, err := client.BeginTx(ctx, &api.BeginTxRequest{Mode: "domain", Domains: []string{"shop"}})
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	if _, err := client.Execute(ctx, &api.ExecuteRequest{TxID: begin.TxID, SQL: "CREATE TABLE items (id INT PRIMARY KEY)"}); err != nil {
+		t.Fatalf("create table: %v", err)
+	}
+	if _, err := client.CommitTx(ctx, &api.CommitTxRequest{TxID: begin.TxID}); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+
+	commits, err := client.TimelineCommits(ctx, &timelineCommitsRequest{})
+	if err != nil {
+		t.Fatalf("TimelineCommits: %v", err)
+	}
+	if len(commits.Commits) == 0 {
+		t.Fatal("the timeline reported no commits")
+	}
+	for _, commit := range commits.Commits {
+		if commit.LSN == 0 {
+			t.Fatalf("commit %+v decoded its LSN as 0", commit)
+		}
+		if commit.MutationCount == 0 {
+			t.Fatalf("commit %d decoded its mutation count as 0", commit.LSN)
+		}
+		// The commit's wall-clock time arrives as a binary timestamp.
+		if commit.CommitTime == "" || commit.CommitTimeMicros == 0 {
+			t.Fatalf("commit %d decoded no wall-clock time", commit.LSN)
+		}
+	}
+
+	stats, err := client.EngineStats(ctx)
+	if err != nil {
+		t.Fatalf("EngineStats: %v", err)
+	}
+	if stats.TotalCommits == 0 {
+		t.Fatal("engine stats decoded total_commits as 0 after a commit")
+	}
+}

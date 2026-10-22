@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -629,7 +630,7 @@ func (c *engineClient) SchemaSnapshot(ctx context.Context, req *api.SchemaSnapsh
 	return &resp, nil
 }
 
-func (c *engineClient) TimelineCommits(ctx context.Context, req *api.TimelineCommitsRequest) (*api.TimelineCommitsResponse, error) {
+func (c *engineClient) TimelineCommits(ctx context.Context, req *timelineCommitsRequest) (*timelineCommitsResponse, error) {
 	var parts []string
 	if req.FromLSN != 0 {
 		parts = append(parts, fmt.Sprintf("from_lsn >= %d", req.FromLSN))
@@ -655,15 +656,23 @@ func (c *engineClient) TimelineCommits(ctx context.Context, req *api.TimelineCom
 	if err != nil {
 		return nil, fmt.Errorf("collect timeline commits: %w", err)
 	}
-	commits := make([]api.TimelineCommitEntry, 0, len(resultRows))
+	commits := make([]timelineCommit, 0, len(resultRows))
 	for _, row := range resultRows {
-		commits = append(commits, api.TimelineCommitEntry{
-			LSN:       toUint64(row["lsn"]),
-			TxID:      toString(row["tx_id"]),
-			Timestamp: toUint64(row["timestamp"]),
-		})
+		commit := timelineCommit{
+			LSN:           toUint64(row["lsn"]),
+			TxID:          toString(row["tx_id"]),
+			Timestamp:     toUint64(row["timestamp"]),
+			MutationCount: toUint64(row["mutation_count"]),
+		}
+		// commit_time is NULL on a node that predates ADR 0007, and absent
+		// altogether on an engine older than v0.1.0.
+		if commitTime := parseCommitTime(toString(row["commit_time"])); !commitTime.IsZero() {
+			commit.CommitTime = commitTime.Format(time.RFC3339Nano)
+			commit.CommitTimeMicros = commitTime.UnixMicro()
+		}
+		commits = append(commits, commit)
 	}
-	return &api.TimelineCommitsResponse{Commits: commits}, nil
+	return &timelineCommitsResponse{Commits: commits}, nil
 }
 
 func (c *engineClient) ScanStrategyStats(ctx context.Context) (*api.ScanStrategyStatsResponse, error) {
@@ -875,6 +884,22 @@ type temporalLookupResult struct {
 	EntityVersionLSN    *uint64
 }
 
+// errTemporalHelperUnsupported reports a temporal helper the engine refuses for
+// this table — a composite primary key, or none at all. The engine answers
+// 0A000 for that from v0.7.0 on, where it used to answer NULL and read as a row
+// that simply was not there.
+var errTemporalHelperUnsupported = errors.New("the engine's temporal helpers take a single primary key value, so they do not apply to a table with a composite key or none")
+
+// temporalHelperUnsupported reports the 0A000 the engine answers for a helper
+// it does not support here.
+func temporalHelperUnsupported(err error) bool {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "0A000"
+	}
+	return false
+}
+
 func (c *engineClient) TemporalLookup(ctx context.Context, req temporalLookupRequest) (*temporalLookupResult, error) {
 	if strings.TrimSpace(req.Domain) == "" {
 		return nil, fmt.Errorf("domain is required")
@@ -898,15 +923,21 @@ func (c *engineClient) TemporalLookup(ctx context.Context, req temporalLookupReq
 
 	rowLSN, err := c.queryOptionalUint64(ctx, fmt.Sprintf("SELECT row_lsn('%s', '%s')", tableRef, pk))
 	if err != nil {
+		if temporalHelperUnsupported(err) {
+			return nil, errTemporalHelperUnsupported
+		}
 		return nil, err
 	}
 	result.RowLSN = rowLSN
 
 	resolveReference, err := c.queryOptionalUint64(ctx, fmt.Sprintf("SELECT resolve_reference('%s', '%s')", tableRef, pk))
-	if err != nil {
-		result.ResolveReferenceErr = err.Error()
-	} else {
+	switch {
+	case err == nil:
 		result.ResolveReference = resolveReference
+	case temporalHelperUnsupported(err):
+		result.ResolveReferenceErr = errTemporalHelperUnsupported.Error()
+	default:
+		result.ResolveReferenceErr = err.Error()
 	}
 
 	if strings.TrimSpace(req.EntityName) != "" && strings.TrimSpace(req.EntityRootPK) != "" {
@@ -916,12 +947,18 @@ func (c *engineClient) TemporalLookup(ctx context.Context, req temporalLookupReq
 
 		entityVersion, err := c.queryOptionalUint64(ctx, fmt.Sprintf("SELECT entity_version('%s', '%s', '%s')", domain, entity, rootPK))
 		if err != nil {
+			if temporalHelperUnsupported(err) {
+				return nil, errTemporalHelperUnsupported
+			}
 			return nil, err
 		}
 		result.EntityVersion = entityVersion
 
 		entityHeadLSN, err := c.queryOptionalUint64(ctx, fmt.Sprintf("SELECT entity_head_lsn('%s', '%s', '%s')", domain, entity, rootPK))
 		if err != nil {
+			if temporalHelperUnsupported(err) {
+				return nil, errTemporalHelperUnsupported
+			}
 			return nil, err
 		}
 		result.EntityHeadLSN = entityHeadLSN

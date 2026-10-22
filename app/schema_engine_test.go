@@ -3,6 +3,7 @@ package studioapp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -197,6 +198,63 @@ func TestEngineAcceptsDiffStatements(t *testing.T) {
 	}
 }
 
+// TestEngineAsOfTimestampReadsAtACommit checks that the clause the studio
+// appends is one the engine accepts, and that it reads at the commit the
+// studio resolved.
+func TestEngineAsOfTimestampReadsAtACommit(t *testing.T) {
+	ctx := context.Background()
+	client := newSchemaEngineClient(t)
+
+	applyStatements(t, client, "shop", []string{
+		"CREATE TABLE items (id INT PRIMARY KEY, name TEXT)",
+		"INSERT INTO items (id, name) VALUES (1, 'one')",
+	})
+	applyStatements(t, client, "shop", []string{"INSERT INTO items (id, name) VALUES (2, 'two')"})
+
+	commits, err := client.TimelineCommits(ctx, &timelineCommitsRequest{})
+	if err != nil {
+		t.Fatalf("TimelineCommits: %v", err)
+	}
+	var first, last timelineCommit
+	for _, commit := range commits.Commits {
+		if commit.CommitTimeMicros == 0 {
+			t.Skipf("this engine records no commit times; upgrade to asql v0.1.0 or newer to run this test")
+		}
+		if first.LSN == 0 || commit.LSN < first.LSN {
+			first = commit
+		}
+		if commit.LSN > last.LSN {
+			last = commit
+		}
+	}
+	if first.LSN == last.LSN {
+		t.Fatalf("expected two commits, got %+v", commits.Commits)
+	}
+
+	for _, test := range []struct {
+		name     string
+		commit   timelineCommit
+		wantRows int
+	}{
+		{name: "at the first commit", commit: first, wantRows: 1},
+		{name: "at the last commit", commit: last, wantRows: 2},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			sql, err := applyAsOfTimestamp("SELECT id FROM items", test.commit.CommitTime)
+			if err != nil {
+				t.Fatalf("applyAsOfTimestamp: %v", err)
+			}
+			rows, err := client.queryWithDomains(ctx, []string{"shop"}, sql)
+			if err != nil {
+				t.Fatalf("the engine rejected %q: %v", sql, err)
+			}
+			if len(rows) != test.wantRows {
+				t.Fatalf("%q returned %d rows, want %d", sql, len(rows), test.wantRows)
+			}
+		})
+	}
+}
+
 // TestEngineVerifiableGroupRoundTrip declares a group on a real engine, reads
 // it back through the baseline, and replays the regenerated DDL on a second
 // engine. A group has no CREATE TABLE form, so the script has to order the
@@ -291,6 +349,49 @@ func TestEngineAcceptsVerifiableGroupDiff(t *testing.T) {
 		if len(table.VerifiableGroups) != 1 {
 			t.Fatalf("after %q the engine reports %d groups, want one", statement, len(table.VerifiableGroups))
 		}
+	}
+}
+
+// TestEngineTemporalHelpersRejectCompositeKeys covers the distinction asql
+// v0.7.0 added: a helper that does not apply to a table answers 0A000, while a
+// row that is not there still answers NULL. Before, both read as NULL.
+func TestEngineTemporalHelpersRejectCompositeKeys(t *testing.T) {
+	client := newSchemaEngineClient(t)
+	requireVerifiableRows(t, client)
+
+	applyStatements(t, client, "shop", []string{
+		"CREATE TABLE single (id INT PRIMARY KEY, n INT)",
+		"CREATE TABLE lines (order_id INT NOT NULL, line_no INT NOT NULL, qty INT, PRIMARY KEY (order_id, line_no))",
+		"INSERT INTO single (id, n) VALUES (1, 10)",
+	})
+
+	ctx := context.Background()
+
+	// A row that exists resolves.
+	found, err := client.TemporalLookup(ctx, temporalLookupRequest{Domain: "shop", TableName: "single", PrimaryKey: "1"})
+	if err != nil {
+		t.Fatalf("TemporalLookup on an existing row: %v", err)
+	}
+	if found.RowLSN == nil {
+		t.Fatal("an existing row should report its LSN")
+	}
+
+	// A row that is not there is still NULL, not an error.
+	missing, err := client.TemporalLookup(ctx, temporalLookupRequest{Domain: "shop", TableName: "single", PrimaryKey: "999"})
+	if err != nil {
+		t.Fatalf("a missing row should not be an error: %v", err)
+	}
+	if missing.RowLSN != nil {
+		t.Fatalf("a missing row should report no LSN, got %d", *missing.RowLSN)
+	}
+
+	// A composite key is refused, and the studio says why.
+	_, err = client.TemporalLookup(ctx, temporalLookupRequest{Domain: "shop", TableName: "lines", PrimaryKey: "1,2"})
+	if err == nil {
+		t.Skip("this engine still answers NULL for a composite key; upgrade to asql v0.7.0 to run this check")
+	}
+	if !errors.Is(err, errTemporalHelperUnsupported) {
+		t.Fatalf("a composite key should report the helper as unsupported, got %v", err)
 	}
 }
 
