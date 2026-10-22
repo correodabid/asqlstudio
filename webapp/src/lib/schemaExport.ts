@@ -3,7 +3,7 @@ import { downloadFile } from './export'
 /** True when running inside the Wails desktop webview. */
 function isWails(): boolean {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return typeof (window as any)?.go?.main?.App?.SaveTextFile === 'function'
+  return typeof (window as any)?.go?.studioapp?.App?.SaveTextFile === 'function'
 }
 
 /**
@@ -82,7 +82,7 @@ export async function exportPNG(svgElement: SVGSVGElement, filename = 'schema.pn
         const reader = new FileReader()
         reader.onload = () => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          ;(window as any).go.main.App.SaveBinaryFile(filename, reader.result as string)
+          ;(window as any).go.studioapp.App.SaveBinaryFile(filename, reader.result as string)
         }
         reader.readAsDataURL(pngBlob)
         return
