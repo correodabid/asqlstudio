@@ -1072,3 +1072,86 @@ func toBool(v interface{}) bool {
 	}
 	return false
 }
+
+// ── Verifiable history: ledger digests, proofs and result attestations ───────
+//
+// These read the asql_admin virtual tables the node answers outside the engine,
+// so nothing they return reaches the WAL. All four need the ADMIN privilege,
+// and the proof and attestation tables additionally need the node to run with
+// a signed ledger (prove_rows also needs a state key).
+
+// LedgerDigest returns the ledger digest covering lsn, or the latest one when
+// lsn is 0. It returns nil when the node keeps no digests.
+func (c *engineClient) LedgerDigest(ctx context.Context, lsn uint64) (map[string]interface{}, error) {
+	query := "SELECT * FROM asql_admin.ledger_digest"
+	if lsn > 0 {
+		query += fmt.Sprintf(" WHERE lsn >= %d", lsn)
+	}
+	rows, err := c.pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("ledger digest: %w", err)
+	}
+	result, err := pgxRowsToMaps(rows)
+	if err != nil {
+		return nil, fmt.Errorf("collect ledger digest: %w", err)
+	}
+	if len(result) == 0 {
+		return nil, nil
+	}
+	return result[0], nil
+}
+
+// ProveConsistency proves that the log signed at toLSN (the latest when 0)
+// extends the log signed at fromLSN, without revealing any record.
+func (c *engineClient) ProveConsistency(ctx context.Context, fromLSN, toLSN uint64) (map[string]interface{}, error) {
+	query := fmt.Sprintf("SELECT * FROM asql_admin.prove_consistency WHERE from_lsn = %d", fromLSN)
+	if toLSN > 0 {
+		query += fmt.Sprintf(" AND to_lsn = %d", toLSN)
+	}
+	rows, err := c.pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("prove consistency: %w", err)
+	}
+	result, err := pgxRowsToMaps(rows)
+	if err != nil {
+		return nil, fmt.Errorf("collect consistency proof: %w", err)
+	}
+	if len(result) == 0 {
+		return nil, fmt.Errorf("prove consistency: the node returned no proof")
+	}
+	return result[0], nil
+}
+
+// ProveRows proves that the state signed at lsn (the latest digest when 0) held
+// the rows cited by keys, a JSON list of {domain, table, pk} entries.
+func (c *engineClient) ProveRows(ctx context.Context, keys string, lsn uint64) (map[string]interface{}, error) {
+	query := fmt.Sprintf("SELECT * FROM asql_admin.prove_rows WHERE keys = '%s'", pgEscape(keys))
+	if lsn > 0 {
+		query += fmt.Sprintf(" AND lsn = %d", lsn)
+	}
+	result, err := c.queryWithDomainsMode(ctx, nil, query, pgx.QueryExecModeSimpleProtocol)
+	if err != nil {
+		return nil, fmt.Errorf("prove rows: %w", err)
+	}
+	if len(result) == 0 {
+		return nil, fmt.Errorf("prove rows: the node returned no proof")
+	}
+	return result[0], nil
+}
+
+// AttestQuery runs a SELECT at a committed LSN (the latest when 0) and returns
+// its rows together with a signed attestation binding them to the ledger chain.
+func (c *engineClient) AttestQuery(ctx context.Context, sql string, domains []string, lsn uint64) (map[string]interface{}, error) {
+	query := fmt.Sprintf("SELECT * FROM asql_admin.attest_query WHERE sql = '%s'", pgEscape(sql))
+	if lsn > 0 {
+		query += fmt.Sprintf(" AND lsn = %d", lsn)
+	}
+	result, err := c.queryWithDomainsMode(ctx, domains, query, pgx.QueryExecModeSimpleProtocol)
+	if err != nil {
+		return nil, fmt.Errorf("attest query: %w", err)
+	}
+	if len(result) == 0 {
+		return nil, fmt.Errorf("attest query: the node returned no attestation")
+	}
+	return result[0], nil
+}
