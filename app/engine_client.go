@@ -15,6 +15,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	api "github.com/correodabid/asql/pkg/adminapi"
@@ -162,6 +163,18 @@ func pgxRowsToMaps(rows pgx.Rows) ([]map[string]interface{}, error) {
 	return result, rows.Err()
 }
 
+// pgxTypeMap decodes binary column values. It is read-only after
+// initialization, so sharing one map across connections is safe.
+var pgxTypeMap = pgtype.NewMap()
+
+// decodeRawPGXRow turns one row into name → value, holding every value as the
+// text the engine sends in text format.
+//
+// Over the extended query protocol pgx asks for binary (format code 1) for
+// every type it knows, so an INT, FLOAT, BOOL or TIMESTAMP column arrives as
+// raw bytes and has to be decoded before it reads as text. Taking the bytes as
+// a string turns 42 into "\x00\x00\x00\x00\x00\x00\x00*", which is what the
+// whole studio then displays and what toUint64 and friends fail to parse.
 func decodeRawPGXRow(fds []pgconn.FieldDescription, raw [][]byte) map[string]interface{} {
 	row := make(map[string]interface{}, len(fds))
 	for i, fd := range fds {
@@ -169,9 +182,58 @@ func decodeRawPGXRow(fds []pgconn.FieldDescription, raw [][]byte) map[string]int
 			row[string(fd.Name)] = nil
 			continue
 		}
-		row[string(fd.Name)] = string(raw[i])
+		row[string(fd.Name)] = decodePGXValue(fd, raw[i])
 	}
 	return row
+}
+
+func decodePGXValue(fd pgconn.FieldDescription, raw []byte) interface{} {
+	if fd.Format == pgtype.TextFormatCode {
+		return string(raw)
+	}
+	dataType, ok := pgxTypeMap.TypeForOID(fd.DataTypeOID)
+	if !ok || dataType.Codec == nil {
+		// An OID pgx does not know: hand the bytes over as they arrived rather
+		// than guess at them.
+		return string(raw)
+	}
+	value, err := dataType.Codec.DecodeValue(pgxTypeMap, fd.DataTypeOID, fd.Format, raw)
+	if err != nil {
+		return string(raw)
+	}
+	return formatPGXValue(value)
+}
+
+// formatPGXValue renders a decoded value the way the engine renders it in text
+// format, so a column reads the same whichever format it arrived in.
+func formatPGXValue(value interface{}) interface{} {
+	switch typed := value.(type) {
+	case nil:
+		return nil
+	case string:
+		return typed
+	case []byte:
+		return string(typed)
+	case bool:
+		if typed {
+			return "t"
+		}
+		return "f"
+	case int16:
+		return strconv.FormatInt(int64(typed), 10)
+	case int32:
+		return strconv.FormatInt(int64(typed), 10)
+	case int64:
+		return strconv.FormatInt(typed, 10)
+	case float32:
+		return strconv.FormatFloat(float64(typed), 'g', -1, 32)
+	case float64:
+		return strconv.FormatFloat(typed, 'g', -1, 64)
+	case time.Time:
+		return typed.UTC().Format("2006-01-02 15:04:05.999999")
+	default:
+		return fmt.Sprint(typed)
+	}
 }
 
 // randomID generates a short random hex string suitable for use as a tx_id.
