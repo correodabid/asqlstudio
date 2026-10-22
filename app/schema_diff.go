@@ -287,6 +287,69 @@ func BuildSchemaDiff(base schemaDDLRequest, target schemaDDLRequest) (schemaDiff
 				safe = false
 			}
 		}
+
+		// Primary key. The engine can add one to an existing table, but it
+		// cannot drop or replace one, so only the addition carries a statement.
+		basePK := tablePrimaryKeyColumns(baseTable)
+		targetPK := tablePrimaryKeyColumns(targetTable)
+		if !sameColumnList(basePK, targetPK) {
+			switch {
+			case len(basePK) == 0:
+				safe = false
+				statement := fmt.Sprintf("ALTER TABLE %s ADD PRIMARY KEY (%s);", tableName, strings.Join(targetPK, ", "))
+				operations = append(operations, schemaDiffOperation{
+					Type:      "add_primary_key",
+					Table:     tableName,
+					Column:    strings.Join(targetPK, ", "),
+					Statement: statement,
+					Safe:      false,
+					Reason:    "the engine checks the existing rows first and fails the whole statement if any key column is NULL or any key tuple repeats, so nothing is changed on failure — but a primary key cannot be dropped or replaced afterwards; review the data before applying",
+				})
+				warnings = append(warnings, fmt.Sprintf("%s: primary key (%s) added — irreversible, and it fails if existing rows have NULL or duplicate keys", tableName, strings.Join(targetPK, ", ")))
+			case len(targetPK) == 0:
+				safe = false
+				operations = append(operations, schemaDiffOperation{
+					Type:     "drop_primary_key",
+					Table:    tableName,
+					Column:   strings.Join(basePK, ", "),
+					Safe:     false,
+					Breaking: true,
+					Reason:   "a primary key cannot be dropped — recreate the table without it and migrate the rows, which rewrites their identity in history",
+				})
+				warnings = append(warnings, fmt.Sprintf("%s: primary key (%s) removed — requires a table rewrite", tableName, strings.Join(basePK, ", ")))
+			default:
+				safe = false
+				operations = append(operations, schemaDiffOperation{
+					Type:     "modify_primary_key",
+					Table:    tableName,
+					Column:   strings.Join(targetPK, ", "),
+					Safe:     false,
+					Breaking: true,
+					Reason:   fmt.Sprintf("a primary key cannot be replaced — the key is (%s) and cannot become (%s) in place; recreate the table and migrate the rows", strings.Join(basePK, ", "), strings.Join(targetPK, ", ")),
+				})
+				warnings = append(warnings, fmt.Sprintf("%s: primary key changed from (%s) to (%s) — requires a table rewrite", tableName, strings.Join(basePK, ", "), strings.Join(targetPK, ", ")))
+			}
+		}
+
+		// APPEND ONLY and VERIFIABLE can be set on an existing table and never
+		// unset, so the diff can only ask for them, never take them back.
+		for _, attribute := range tableAttributeDiffs(tableName, baseTable, targetTable) {
+			safe = false
+			operations = append(operations, attribute.operation)
+			warnings = append(warnings, attribute.warning)
+		}
+
+		// Verifiable groups, which are declared one ALTER at a time and cannot
+		// be undropped either.
+		groupDiffs, err := verifiableGroupDiffs(tableName, baseTable, targetTable)
+		if err != nil {
+			return schemaDiffResponse{}, err
+		}
+		for _, group := range groupDiffs {
+			safe = false
+			operations = append(operations, group.operation)
+			warnings = append(warnings, group.warning)
+		}
 	}
 
 	for _, tableName := range baseNames {
@@ -408,24 +471,165 @@ func sortedEntityNames(entities map[string]schemaDDLEntity) []string {
 	return names
 }
 
-func buildCreateTableStatement(table schemaDDLTable) (string, error) {
-	tableName := strings.TrimSpace(table.Name)
-	if !isValidIdentifier(tableName) {
-		return "", fmt.Errorf("invalid table name %q", tableName)
+// sameColumnList compares two column lists with order significant: the order of
+// a primary key's columns is part of the key.
+func sameColumnList(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
 	}
-	if len(table.Columns) == 0 {
-		return "", fmt.Errorf("table %q must contain at least one column", tableName)
+	for i := range left {
+		if !strings.EqualFold(strings.TrimSpace(left[i]), strings.TrimSpace(right[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+// tableAttributeDiff is one irreversible table attribute that differs between
+// base and target.
+type tableAttributeDiff struct {
+	operation schemaDiffOperation
+	warning   string
+}
+
+// tableAttributeDiffs reports the APPEND ONLY and VERIFIABLE changes between
+// two versions of a table. Setting either one is expressible as DDL and cannot
+// be undone; clearing either one is not expressible at all.
+func tableAttributeDiffs(tableName string, base, target schemaDDLTable) []tableAttributeDiff {
+	var diffs []tableAttributeDiff
+
+	if target.AppendOnly != base.AppendOnly {
+		if target.AppendOnly {
+			diffs = append(diffs, tableAttributeDiff{
+				operation: schemaDiffOperation{
+					Type:      "set_append_only",
+					Table:     tableName,
+					Statement: fmt.Sprintf("ALTER TABLE %s SET APPEND ONLY;", tableName),
+					Safe:      false,
+					Reason:    "UPDATE and DELETE on this table start failing for every principal, and the attribute cannot be undone — the rows already written stay as they are",
+				},
+				warning: fmt.Sprintf("%s: APPEND ONLY set — irreversible, and UPDATE/DELETE on the table stop working", tableName),
+			})
+		} else {
+			diffs = append(diffs, tableAttributeDiff{
+				operation: schemaDiffOperation{
+					Type:     "unset_append_only",
+					Table:    tableName,
+					Safe:     false,
+					Breaking: true,
+					Reason:   "APPEND ONLY cannot be undone — recreate the table without it and migrate the rows",
+				},
+				warning: fmt.Sprintf("%s: APPEND ONLY cannot be cleared — requires a table rewrite", tableName),
+			})
+		}
 	}
 
-	defs := make([]string, 0, len(table.Columns))
-	for _, column := range table.Columns {
-		columnDef, err := columnDefinition(column)
-		if err != nil {
-			return "", fmt.Errorf("table %q: %w", tableName, err)
+	if target.Verifiable != base.Verifiable {
+		if target.Verifiable {
+			diffs = append(diffs, tableAttributeDiff{
+				operation: schemaDiffOperation{
+					Type:      "set_verifiable",
+					Table:     tableName,
+					Statement: fmt.Sprintf("ALTER TABLE %s SET VERIFIABLE;", tableName),
+					Safe:      false,
+					Reason:    "the table's live rows join the state tree, so their membership can be proven against a signed digest; it needs a primary key and the ADMIN privilege, restricts nothing, and cannot be undone",
+				},
+				warning: fmt.Sprintf("%s: VERIFIABLE set — irreversible; the table needs a primary key and the node needs a state key to sign row proofs", tableName),
+			})
+		} else {
+			diffs = append(diffs, tableAttributeDiff{
+				operation: schemaDiffOperation{
+					Type:     "unset_verifiable",
+					Table:    tableName,
+					Safe:     false,
+					Breaking: true,
+					Reason:   "VERIFIABLE cannot be undone — recreate the table without it and migrate the rows",
+				},
+				warning: fmt.Sprintf("%s: VERIFIABLE cannot be cleared — requires a table rewrite", tableName),
+			})
 		}
-		defs = append(defs, columnDef)
 	}
-	return fmt.Sprintf("CREATE TABLE %s (\n  %s\n);", tableName, strings.Join(defs, ",\n  ")), nil
+
+	return diffs
+}
+
+// verifiableGroupDiffs reports the groups a table gains or loses. Declaring one
+// is expressible as DDL and cannot be undone; removing one is not expressible.
+func verifiableGroupDiffs(tableName string, base, target schemaDDLTable) ([]tableAttributeDiff, error) {
+	baseGroups := map[string]schemaDDLVerifiableGroup{}
+	for _, group := range base.VerifiableGroups {
+		baseGroups[verifiableGroupKey(group)] = group
+	}
+	targetGroups := map[string]schemaDDLVerifiableGroup{}
+	for _, group := range target.VerifiableGroups {
+		targetGroups[verifiableGroupKey(group)] = group
+	}
+
+	var diffs []tableAttributeDiff
+	for _, group := range target.VerifiableGroups {
+		key := verifiableGroupKey(group)
+		columns := strings.Join(group.Columns, ", ")
+		existing, exists := baseGroups[key]
+		if exists && verifiableGroupsEquivalent(existing, group) {
+			continue
+		}
+		statement, err := renderVerifiableGroupStatement(tableName, group)
+		if err != nil {
+			return nil, err
+		}
+		if exists {
+			diffs = append(diffs, tableAttributeDiff{
+				operation: schemaDiffOperation{
+					Type:     "modify_verifiable_group",
+					Table:    tableName,
+					Column:   columns,
+					Safe:     false,
+					Breaking: true,
+					Reason:   fmt.Sprintf("a verifiable group cannot be changed — the group on (%s) already references %s (%s); recreate the table to change what it references", columns, existing.References, strings.Join(existing.ReferencedColumns, ", ")),
+				},
+				warning: fmt.Sprintf("%s: verifiable group (%s) changed — requires a table rewrite", tableName, columns),
+			})
+			continue
+		}
+		diffs = append(diffs, tableAttributeDiff{
+			operation: schemaDiffOperation{
+				Type:      "add_verifiable_group",
+				Table:     tableName,
+				Column:    columns,
+				Statement: statement,
+				Safe:      false,
+				Reason:    fmt.Sprintf("every row of %s gains a group leaf, so a proof can show all the rows of a group and that a row has none; both tables must already be VERIFIABLE, the referenced columns must be %s's primary key, and the group cannot be undone — afterwards DROP TABLE %s and DROP COLUMN of the group's columns are refused", group.References, group.References, group.References),
+			},
+			warning: fmt.Sprintf("%s: verifiable group (%s) REFERENCES %s added — irreversible, and it locks the referenced table and columns against dropping", tableName, columns, group.References),
+		})
+	}
+
+	for _, group := range base.VerifiableGroups {
+		if _, stillThere := targetGroups[verifiableGroupKey(group)]; stillThere {
+			continue
+		}
+		columns := strings.Join(group.Columns, ", ")
+		diffs = append(diffs, tableAttributeDiff{
+			operation: schemaDiffOperation{
+				Type:     "drop_verifiable_group",
+				Table:    tableName,
+				Column:   columns,
+				Safe:     false,
+				Breaking: true,
+				Reason:   "a verifiable group cannot be dropped — recreate the table without it and migrate the rows",
+			},
+			warning: fmt.Sprintf("%s: verifiable group (%s) cannot be removed — requires a table rewrite", tableName, columns),
+		})
+	}
+
+	return diffs, nil
+}
+
+// buildCreateTableStatement renders a table the target has and the base does
+// not. A single statement has to carry everything about the table, so foreign
+// keys are folded into their column definitions.
+func buildCreateTableStatement(table schemaDDLTable) (string, error) {
+	return renderCreateTableStatement(table, true)
 }
 
 func buildAddColumnStatement(tableName string, column schemaDDLColumn) string {
@@ -451,37 +655,10 @@ func columnCoreEquivalent(left, right schemaDDLColumn) bool {
 	return true
 }
 
+// columnDefinition renders one column on its own, for ALTER TABLE ADD COLUMN:
+// everything the column carries has to be inline, foreign key included.
 func columnDefinition(column schemaDDLColumn) (string, error) {
-	name := strings.TrimSpace(column.Name)
-	if !isValidIdentifier(name) {
-		return "", fmt.Errorf("invalid column name %q", name)
-	}
-	columnType := strings.ToUpper(strings.TrimSpace(column.Type))
-	if columnType == "" || !typePattern.MatchString(columnType) {
-		return "", fmt.Errorf("invalid type %q for column %s", column.Type, name)
-	}
-
-	def := fmt.Sprintf("%s %s", name, columnType)
-	if column.PrimaryKey || !column.Nullable {
-		def += " NOT NULL"
-	}
-	if column.PrimaryKey {
-		def += " PRIMARY KEY"
-	}
-	if column.Unique && !column.PrimaryKey {
-		def += " UNIQUE"
-	}
-	if value := strings.TrimSpace(column.DefaultValue); value != "" {
-		def += " DEFAULT " + value
-	}
-	if column.References != nil {
-		refTable := strings.TrimSpace(column.References.Table)
-		refColumn := strings.TrimSpace(column.References.Column)
-		if refTable != "" && refColumn != "" {
-			def += fmt.Sprintf(" REFERENCES %s(%s)", refTable, refColumn)
-		}
-	}
-	return def, nil
+	return renderColumnDefinition(column, columnDefOptions{inlineReferences: true, inlinePrimaryKey: true})
 }
 
 func columnsEquivalent(left schemaDDLColumn, right schemaDDLColumn) bool {

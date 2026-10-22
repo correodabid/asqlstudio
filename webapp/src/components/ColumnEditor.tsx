@@ -1,7 +1,16 @@
 import { useEffect, useState } from 'react'
 import type { Dispatch, ReactNode, SetStateAction } from 'react'
-import { clone, type SchemaColumn, type SchemaModel, type SchemaTable } from '../schema'
-import { IconChevronRight, IconKey, IconLink, IconNullable, IconPlus, IconTrash, IconUnique } from './Icons'
+import {
+  clone,
+  dropColumnFromPrimaryKey,
+  renameColumnInPrimaryKey,
+  setTablePrimaryKey,
+  tablePrimaryKey,
+  type SchemaColumn,
+  type SchemaModel,
+  type SchemaTable,
+} from '../schema'
+import { IconChevronRight, IconKey, IconLink, IconLock, IconNullable, IconPlus, IconShieldCheck, IconTrash, IconUnique } from './Icons'
 
 type Props = {
   model: SchemaModel
@@ -115,8 +124,9 @@ export function ColumnEditor({
 
   const removeColumn = () => {
     if (activeTable.columns.length <= 1) return
+    const removed = activeTable.columns[selectedColumn]?.name ?? ''
     updateTable((table) => {
-      const next = clone(table)
+      const next = dropColumnFromPrimaryKey(clone(table), removed)
       next.columns.splice(selectedColumn, 1)
       return next
     })
@@ -124,6 +134,39 @@ export function ColumnEditor({
   }
 
   const vfks = activeTable.versioned_foreign_keys || []
+  const primaryKey = tablePrimaryKey(activeTable)
+  const keyPosition = (name: string) => primaryKey.indexOf(name)
+
+  // The key is edited as one list: a single column lands on the column itself,
+  // several become a table-level PRIMARY KEY (a, b). Order is part of the key.
+  const toggleKeyColumn = (name: string) => {
+    updateTable((table) => {
+      const current = tablePrimaryKey(table)
+      const next = current.includes(name) ? current.filter((column) => column !== name) : [...current, name]
+      return setTablePrimaryKey(table, next)
+    })
+  }
+
+  const moveKeyColumn = (name: string, delta: number) => {
+    updateTable((table) => {
+      const current = tablePrimaryKey(table)
+      const from = current.indexOf(name)
+      const to = from + delta
+      if (from < 0 || to < 0 || to >= current.length) return table
+      const next = [...current]
+      next.splice(to, 0, ...next.splice(from, 1))
+      return setTablePrimaryKey(table, next)
+    })
+  }
+
+  const renameActiveColumn = (name: string) => {
+    updateTable((table) => {
+      const previous = table.columns[selectedColumn]?.name ?? ''
+      const next = renameColumnInPrimaryKey(clone(table), previous, name)
+      next.columns[selectedColumn] = { ...next.columns[selectedColumn], name }
+      return next
+    })
+  }
 
   return (
     <div className="column-editor">
@@ -151,6 +194,100 @@ export function ColumnEditor({
             onChange={(e) => setModel((c) => ({ ...c, domain: e.target.value }))}
           />
         </div>
+
+        <div className="editor-field">
+          <label className="editor-field-label">
+            Primary Key{primaryKey.length > 1 ? ` (${primaryKey.join(', ')})` : ''}
+          </label>
+          <div className="ce-key-list">
+            {activeTable.columns.map((col) => {
+              const position = keyPosition(col.name)
+              const inKey = position >= 0
+              return (
+                <div key={`key-${col.name}`} className={`ce-key-row${inKey ? ' on' : ''}`}>
+                  <label className="ce-key-toggle">
+                    <input type="checkbox" checked={inKey} onChange={() => toggleKeyColumn(col.name)} />
+                    <IconKey />
+                    <span className="mono">{col.name || '—'}</span>
+                  </label>
+                  {inKey && primaryKey.length > 1 && (
+                    <span className="ce-key-order">
+                      <span className="ce-key-position">{position + 1}</span>
+                      <button
+                        className="icon-btn"
+                        title="Earlier in the key"
+                        disabled={position === 0}
+                        onClick={() => moveKeyColumn(col.name, -1)}
+                      >↑</button>
+                      <button
+                        className="icon-btn"
+                        title="Later in the key"
+                        disabled={position === primaryKey.length - 1}
+                        onClick={() => moveKeyColumn(col.name, 1)}
+                      >↓</button>
+                    </span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          {primaryKey.length > 1 && (
+            <span className="editor-hint">
+              Column order is part of the key. Key columns are NOT NULL and the key tuple must be unique.
+            </span>
+          )}
+          {primaryKey.length === 0 && (
+            <span className="editor-hint">
+              No primary key. A table needs one to be VERIFIABLE or to have its rows proven.
+            </span>
+          )}
+        </div>
+
+        <div className="constraint-grid">
+          <label className={`constraint-toggle ${activeTable.append_only ? 'on' : ''}`}>
+            <input
+              type="checkbox"
+              checked={Boolean(activeTable.append_only)}
+              onChange={(e) => updateTable((t) => ({ ...t, append_only: e.target.checked }))}
+            />
+            <IconLock /> <span>Append Only</span>
+          </label>
+          <label className={`constraint-toggle ${activeTable.verifiable ? 'on' : ''}`}>
+            <input
+              type="checkbox"
+              checked={Boolean(activeTable.verifiable)}
+              onChange={(e) => updateTable((t) => ({ ...t, verifiable: e.target.checked }))}
+            />
+            <IconShieldCheck /> <span>Verifiable</span>
+          </label>
+        </div>
+        {(activeTable.verifiable_groups ?? []).length > 0 && (
+          <div className="editor-field">
+            <label className="editor-field-label">Verifiable Groups</label>
+            <div className="ce-group-list">
+              {(activeTable.verifiable_groups ?? []).map((group, index) => (
+                <div className="ce-group-row" key={`group-${index}`}>
+                  <IconShieldCheck />
+                  <span className="mono">
+                    ({group.columns.join(', ')}) → {group.references} ({group.referenced_columns.join(', ')})
+                  </span>
+                </div>
+              ))}
+            </div>
+            <span className="editor-hint">
+              Each group makes the rows sharing a key value provable as a complete set. Declared with its own
+              ALTER TABLE and never removed, so it is shown here, not edited.
+            </span>
+          </div>
+        )}
+
+        {(activeTable.append_only || activeTable.verifiable) && (
+          <span className="editor-hint warn">
+            {activeTable.append_only && 'APPEND ONLY stops UPDATE and DELETE on this table. '}
+            {activeTable.verifiable && 'VERIFIABLE puts the table\u2019s live rows in the state tree so they can be proven against a signed digest. '}
+            Neither can be undone once applied.
+          </span>
+        )}
       </SectionPanel>
 
       {/* ── Columns list ────────────────────────────────────── */}
@@ -174,7 +311,7 @@ export function ColumnEditor({
               onClick={() => setSelectedColumn(i)}
             >
               <span className="col-indicator">
-                {col.primary_key ? <IconKey /> : col.references ? <IconLink /> : <span className="col-dot" />}
+                {keyPosition(col.name) >= 0 ? <IconKey /> : col.references ? <IconLink /> : <span className="col-dot" />}
               </span>
               <span className="col-list-name">{col.name || '—'}</span>
               <span className="col-list-type">{col.type}</span>
@@ -197,7 +334,7 @@ export function ColumnEditor({
               <input
                 className="editor-input mono"
                 value={activeColumn.name}
-                onChange={(e) => updateColumn((c) => ({ ...c, name: e.target.value }))}
+                onChange={(e) => renameActiveColumn(e.target.value)}
               />
             </div>
             <div className="editor-field">
@@ -247,20 +384,30 @@ export function ColumnEditor({
           </div>
 
           <div className="constraint-grid">
-            <label className={`constraint-toggle ${activeColumn.primary_key ? 'on' : ''}`}>
+            <label className={`constraint-toggle ${keyPosition(activeColumn.name) >= 0 ? 'on' : ''}`}>
               <input
                 type="checkbox"
-                checked={activeColumn.primary_key}
-                onChange={(e) => updateColumn((c) => ({ ...c, primary_key: e.target.checked, nullable: e.target.checked ? false : c.nullable }))}
+                checked={keyPosition(activeColumn.name) >= 0}
+                onChange={() => toggleKeyColumn(activeColumn.name)}
               />
-              <IconKey /> <span>Primary Key</span>
+              <IconKey />
+              <span>
+                Primary Key
+                {keyPosition(activeColumn.name) >= 0 && primaryKey.length > 1 ? ` ${keyPosition(activeColumn.name) + 1}/${primaryKey.length}` : ''}
+              </span>
             </label>
             <label className={`constraint-toggle ${activeColumn.unique ? 'on' : ''}`}>
               <input type="checkbox" checked={activeColumn.unique} onChange={(e) => updateColumn((c) => ({ ...c, unique: e.target.checked }))} />
               <IconUnique /> <span>Unique</span>
             </label>
             <label className={`constraint-toggle ${activeColumn.nullable ? 'on' : ''}`}>
-              <input type="checkbox" checked={activeColumn.nullable} onChange={(e) => updateColumn((c) => ({ ...c, nullable: e.target.checked }))} />
+              <input
+                type="checkbox"
+                checked={activeColumn.nullable}
+                disabled={keyPosition(activeColumn.name) >= 0}
+                title={keyPosition(activeColumn.name) >= 0 ? 'A primary key column cannot be NULL' : undefined}
+                onChange={(e) => updateColumn((c) => ({ ...c, nullable: e.target.checked }))}
+              />
               <IconNullable /> <span>Nullable</span>
             </label>
           </div>

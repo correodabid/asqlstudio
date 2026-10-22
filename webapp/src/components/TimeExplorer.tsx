@@ -89,7 +89,34 @@ export function TimeExplorer({ domain }: Props) {
   const [walSize, setWalSize]         = useState(0)
   const [snapSize, setSnapSize]       = useState(0)
 
+  // Reading at a date: the engine resolves AS OF TIMESTAMP to the newest commit
+  // at or before the instant, so the studio shows which commit that is and then
+  // works in LSNs like the rest of the panel.
+  const [asOfInput, setAsOfInput] = useState('')
+  const [asOfResolved, setAsOfResolved] = useState<{ lsn: number; commit_time?: string; tx_id?: string; exact?: boolean } | null>(null)
+  const [asOfError, setAsOfError] = useState('')
+  const [asOfBusy, setAsOfBusy] = useState(false)
+
   const querySeq = useRef(0)
+
+  const resolveAsOf = useCallback(async () => {
+    const timestamp = asOfInput.trim()
+    if (timestamp === '') return
+    setAsOfBusy(true)
+    setAsOfError('')
+    try {
+      const resolved = await api<{ lsn: number; commit_time?: string; tx_id?: string; exact?: boolean }>(
+        '/api/resolve-timestamp', 'POST', { timestamp },
+      )
+      setAsOfResolved(resolved)
+      setCurrentLSN(resolved.lsn)
+    } catch (error) {
+      setAsOfResolved(null)
+      setAsOfError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setAsOfBusy(false)
+    }
+  }, [asOfInput])
 
   // ─── Load helpers ──────────────────────────────────────
 
@@ -706,6 +733,31 @@ export function TimeExplorer({ domain }: Props) {
               </button>
             </div>
           )}
+
+        {/* Read at a date — resolved to the commit the engine would read at */}
+        <div className="te-asof-bar">
+          <label className="te-asof-field">
+            <span className="te-asof-label">Read at</span>
+            <input
+              className="te-asof-input"
+              type="datetime-local"
+              step="1"
+              value={asOfInput}
+              onChange={e => setAsOfInput(e.target.value)}
+            />
+          </label>
+          <button className="toolbar-btn" onClick={() => void resolveAsOf()} disabled={asOfBusy || asOfInput.trim() === ''}>
+            {asOfBusy ? 'Resolving…' : 'Go to date'}
+          </button>
+          {asOfResolved && (
+            <span className="te-asof-result">
+              {asOfResolved.exact ? 'exactly' : 'newest at or before'} → LSN {asOfResolved.lsn.toLocaleString()}
+              {asOfResolved.commit_time ? ` · ${new Date(asOfResolved.commit_time).toLocaleString()}` : ''}
+              {asOfResolved.tx_id ? ` · tx:${asOfResolved.tx_id.slice(0, 12)}` : ''}
+            </span>
+          )}
+          {asOfError !== '' && <span className="te-asof-error">{asOfError}</span>}
+        </div>
 
         {/* Sub-navigation */}
         <div className="te-sub-nav">

@@ -1,26 +1,3 @@
-export namespace httpapi {
-	
-	export class TimelineCommitsRequest {
-	    from_lsn?: number;
-	    to_lsn?: number;
-	    limit?: number;
-	    domain?: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new TimelineCommitsRequest(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.from_lsn = source["from_lsn"];
-	        this.to_lsn = source["to_lsn"];
-	        this.limit = source["limit"];
-	        this.domain = source["domain"];
-	    }
-	}
-
-}
-
 export namespace studioapp {
 	
 	export class assistantChatMessage {
@@ -268,6 +245,22 @@ export namespace studioapp {
 	        this.confidence = source["confidence"];
 	    }
 	}
+	export class attestQueryRequest {
+	    sql: string;
+	    domains?: string[];
+	    lsn?: number;
+
+	    static createFrom(source: any = {}) {
+	        return new attestQueryRequest(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sql = source["sql"];
+	        this.domains = source["domains"];
+	        this.lsn = source["lsn"];
+	    }
+	}
 	export class beginRequest {
 	    mode: string;
 	    domains: string[];
@@ -415,6 +408,58 @@ export namespace studioapp {
 	        this.name = source["name"];
 	        this.description = source["description"];
 	    }
+	}
+	export class ledgerRowKey {
+	    domain: string;
+	    table: string;
+	    pk?: string[];
+	    group?: string[];
+	    group_columns?: string[];
+
+	    static createFrom(source: any = {}) {
+	        return new ledgerRowKey(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.domain = source["domain"];
+	        this.table = source["table"];
+	        this.pk = source["pk"];
+	        this.group = source["group"];
+	        this.group_columns = source["group_columns"];
+	    }
+	}
+	export class ledgerRowProofRequest {
+	    keys: ledgerRowKey[];
+	    lsn?: number;
+
+	    static createFrom(source: any = {}) {
+	        return new ledgerRowProofRequest(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.keys = this.convertValues(source["keys"], ledgerRowKey);
+	        this.lsn = source["lsn"];
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class readQueryRequest {
 	    sql: string;
@@ -597,11 +642,31 @@ export namespace studioapp {
 	        this.references_column = source["references_column"];
 	    }
 	}
+	export class schemaDDLVerifiableGroup {
+	    columns: string[];
+	    references: string;
+	    referenced_columns: string[];
+
+	    static createFrom(source: any = {}) {
+	        return new schemaDDLVerifiableGroup(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.columns = source["columns"];
+	        this.references = source["references"];
+	        this.referenced_columns = source["referenced_columns"];
+	    }
+	}
 	export class schemaDDLTable {
 	    name: string;
 	    columns: schemaDDLColumn[];
 	    indexes?: schemaDDLIndex[];
 	    versioned_foreign_keys?: schemaDDLVersionedFK[];
+	    primary_key?: string[];
+	    append_only?: boolean;
+	    verifiable?: boolean;
+	    verifiable_groups?: schemaDDLVerifiableGroup[];
 	
 	    static createFrom(source: any = {}) {
 	        return new schemaDDLTable(source);
@@ -613,6 +678,10 @@ export namespace studioapp {
 	        this.columns = this.convertValues(source["columns"], schemaDDLColumn);
 	        this.indexes = this.convertValues(source["indexes"], schemaDDLIndex);
 	        this.versioned_foreign_keys = this.convertValues(source["versioned_foreign_keys"], schemaDDLVersionedFK);
+	        this.primary_key = source["primary_key"];
+	        this.append_only = source["append_only"];
+	        this.verifiable = source["verifiable"];
+	        this.verifiable_groups = this.convertValues(source["verifiable_groups"], schemaDDLVerifiableGroup);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -737,6 +806,7 @@ export namespace studioapp {
 	    sql: string;
 	    domains: string[];
 	    lsn?: number;
+	    timestamp?: string;
 	    logical_timestamp?: number;
 	
 	    static createFrom(source: any = {}) {
@@ -748,7 +818,26 @@ export namespace studioapp {
 	        this.sql = source["sql"];
 	        this.domains = source["domains"];
 	        this.lsn = source["lsn"];
+	        this.timestamp = source["timestamp"];
 	        this.logical_timestamp = source["logical_timestamp"];
+	    }
+	}
+	export class timelineCommitsRequest {
+	    from_lsn?: number;
+	    to_lsn?: number;
+	    limit?: number;
+	    domain?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new timelineCommitsRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.from_lsn = source["from_lsn"];
+	        this.to_lsn = source["to_lsn"];
+	        this.limit = source["limit"];
+	        this.domain = source["domain"];
 	    }
 	}
 	export class txRequest {

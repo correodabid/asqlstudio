@@ -54,6 +54,16 @@ export const IconShield = () => (
   <svg {...sz}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
 )
 
+/** Shield with a check — a claim that can be verified */
+export const IconShieldCheck = () => (
+  <svg {...sz}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><polyline points="9 12 11.5 14.5 16 10" /></svg>
+)
+
+/** Linked blocks — the ledger's hash chain */
+export const IconChain = () => (
+  <svg {...sz}><rect x="2" y="9" width="6" height="6" rx="1" /><rect x="16" y="9" width="6" height="6" rx="1" /><path d="M8 12h3M13 12h3" /></svg>
+)
+
 export const IconActivity = () => (
   <svg {...sz}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
 )

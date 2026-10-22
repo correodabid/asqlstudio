@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { IconChevronDown } from './Icons'
 
-export type TabId = 'home' | 'workspace' | 'designer' | 'schema-ddl' | 'dashboard' | 'cluster' | 'security' | 'time-explorer' | 'fixtures' | 'recovery' | 'entities' | 'entity-changes'
+export type TabId = 'home' | 'workspace' | 'designer' | 'schema-ddl' | 'dashboard' | 'cluster' | 'security' | 'ledger' | 'time-explorer' | 'fixtures' | 'recovery' | 'entities' | 'entity-changes'
 
 type TabDef = {
   id: TabId

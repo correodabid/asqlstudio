@@ -30,7 +30,8 @@ function resolveEntityRootPK(
   foreignKeys: { column: string; refTable: string; refColumn: string }[],
 ): string | null {
   if (tableName === rootTable) {
-    if (pkColumns.length === 0) return null
+    // A composite key is not addressable by a single value.
+    if (pkColumns.length !== 1) return null
     const value = row[pkColumns[0]]
     if (value === null || value === undefined) return null
     return String(value)
@@ -110,7 +111,11 @@ export function DetailTemporalMetadata({
         </button>
         {expanded && (
           <div className="detail-section-body">
-            <div className="text-muted">Temporal helper shortcuts are currently available for single-column primary keys.</div>
+            <div className="text-muted">
+              {pkColumns.length > 1
+                ? `This table's primary key is composite (${pkColumns.join(', ')}). The engine's row_lsn and resolve_reference helpers take a single key value, so these shortcuts are unavailable here; the row's history is still in Row History and in time travel.`
+                : 'This table has no primary key, so there is no row to look up.'}
+            </div>
           </div>
         )}
       </div>
