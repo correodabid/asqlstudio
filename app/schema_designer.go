@@ -52,7 +52,9 @@ type schemaDDLVerifiableGroup struct {
 type schemaDDLIndex struct {
 	Name    string   `json:"name"`
 	Columns []string `json:"columns"`
-	Method  string   `json:"method"` // "hash" or "btree"
+	// Method is "hash" or "btree". Empty means the method is not known, and
+	// the DDL then leaves USING out so the engine applies its own default.
+	Method string `json:"method"`
 }
 
 type schemaDDLColumn struct {
@@ -434,16 +436,20 @@ func BuildSchemaDDLScript(request schemaDDLRequest) (schemaDDLResponse, error) {
 				}
 			}
 
+			// An index with no method stated leaves USING out, so the engine
+			// applies its own default rather than the studio asserting one it
+			// was not told. The designer always sends a method, so this only
+			// covers a snapshot, or a caller, that does not.
 			method := strings.ToLower(strings.TrimSpace(idx.Method))
-			if method == "" {
-				method = "btree"
-			}
-			if method != "hash" && method != "btree" {
+			if method != "" && method != "hash" && method != "btree" {
 				return schemaDDLResponse{}, fmt.Errorf("invalid index method %q for index %q on table %q", idx.Method, idxName, tableName)
 			}
 
-			colList := strings.Join(idx.Columns, ", ")
-			indexStatements = append(indexStatements, fmt.Sprintf("CREATE INDEX %s ON %s (%s) USING %s;", idxName, tableName, colList, method))
+			statement := fmt.Sprintf("CREATE INDEX %s ON %s (%s)", idxName, tableName, strings.Join(idx.Columns, ", "))
+			if method != "" {
+				statement += " USING " + method
+			}
+			indexStatements = append(indexStatements, statement+";")
 		}
 	}
 
