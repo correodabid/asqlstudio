@@ -27,6 +27,12 @@ import (
 // startSigningLedgerNode starts an engine in ledger mode "signed" with a
 // state key, which is what a version 3 digest -- the one row proofs need --
 // requires. It returns the pgwire address.
+//
+// The keys are generated here because servertest cannot start a signing node
+// in v0.9.0. The next asql release adds that (asql#115): servertest.Options
+// gains SignedLedger, which generates both keys and hands back the public one,
+// and Server.SignLedgerDigest signs the head on demand. Move to those and this
+// helper, and the waiting below, both go away.
 func startSigningLedgerNode(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -81,7 +87,8 @@ func newSigningLedgerApp(t *testing.T) *App {
 // Signing is on a cadence -- at most every interval, sooner after a number of
 // LSNs, 1s and 10,000 by default -- so a digest does not exist the instant a
 // commit returns, and the proof tables answer "no digest signed yet" until it
-// does.
+// does. Waiting on the clock is what v0.9.0 allows; the next release lets a
+// test sign on demand instead.
 func waitForSignedDigest(t *testing.T, app *App) api.LedgerDigest {
 	t.Helper()
 	deadline := time.Now().Add(15 * time.Second)
@@ -300,10 +307,13 @@ func TestEngineProveRowsIsTheAdminapiProof(t *testing.T) {
 		if len(row.PrimaryKeyColumns) != 2 {
 			t.Errorf("a proven row of a composite key lists %d key columns, want 2", len(row.PrimaryKeyColumns))
 		}
-		// adminapi documents ProvenRow.Row as holding every column, "the
-		// engine's _lsn included". v0.9.0 sends only the declared ones, so
-		// this asserts what the engine actually proves; the discrepancy is
-		// reported upstream rather than assumed here.
+		// Row holds the declared columns and not the engine's _lsn. The
+		// adminapi comment said otherwise; asql confirmed the comment was
+		// wrong and fixed it (asql#115). The leaf is these columns sorted by
+		// name plus the salt, and the row's version enters through the salt,
+		// HMAC(state key, key || LSN), which is why a third party can
+		// recompute the leaf from the proof alone -- without the LSN and
+		// without the state key. So the columns are exactly what to assert.
 		for _, column := range []string{"order_id", "sku"} {
 			if _, ok := row.Row[column]; !ok {
 				t.Errorf("a proven row does not carry %q", column)
