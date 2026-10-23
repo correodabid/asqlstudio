@@ -3,7 +3,7 @@ module github.com/correodabid/asqlstudio
 go 1.26.0
 
 require (
-	github.com/correodabid/asql v0.8.0
+	github.com/correodabid/asql v0.9.0
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/wailsapp/wails/v2 v2.12.0
 )
