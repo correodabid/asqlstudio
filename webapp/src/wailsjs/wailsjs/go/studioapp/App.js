@@ -10,12 +10,12 @@ export function AssistantLLMCatalog() {
   return window['go']['studioapp']['App']['AssistantLLMCatalog']();
 }
 
-export function Begin(arg1) {
-  return window['go']['studioapp']['App']['Begin'](arg1);
-}
-
 export function AttestQuery(arg1) {
   return window['go']['studioapp']['App']['AttestQuery'](arg1);
+}
+
+export function Begin(arg1) {
+  return window['go']['studioapp']['App']['Begin'](arg1);
 }
 
 export function ClusterDiagnostics() {
@@ -154,12 +154,12 @@ export function ReplicationLastLSN() {
   return window['go']['studioapp']['App']['ReplicationLastLSN']();
 }
 
-export function Rollback(arg1) {
-  return window['go']['studioapp']['App']['Rollback'](arg1);
-}
-
 export function ResolveTimestamp(arg1) {
   return window['go']['studioapp']['App']['ResolveTimestamp'](arg1);
+}
+
+export function Rollback(arg1) {
+  return window['go']['studioapp']['App']['Rollback'](arg1);
 }
 
 export function RowHistory(arg1) {

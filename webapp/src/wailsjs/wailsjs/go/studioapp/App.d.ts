@@ -6,9 +6,9 @@ export function AssistQuery(arg1:studioapp.assistantQueryRequest):Promise<studio
 
 export function AssistantLLMCatalog():Promise<studioapp.assistantLLMCatalog>;
 
-export function Begin(arg1:studioapp.beginRequest):Promise<Record<string, any>>;
-
 export function AttestQuery(arg1:studioapp.attestQueryRequest):Promise<Record<string, any>>;
+
+export function Begin(arg1:studioapp.beginRequest):Promise<Record<string, any>>;
 
 export function ClusterDiagnostics():Promise<Record<string, any>>;
 
@@ -78,9 +78,9 @@ export function ReplicationLag():Promise<Record<string, any>>;
 
 export function ReplicationLastLSN():Promise<Record<string, any>>;
 
-export function Rollback(arg1:studioapp.txRequest):Promise<Record<string, any>>;
-
 export function ResolveTimestamp(arg1:string):Promise<Record<string, any>>;
+
+export function Rollback(arg1:studioapp.txRequest):Promise<Record<string, any>>;
 
 export function RowHistory(arg1:studioapp.rowHistoryRequest):Promise<Record<string, any>>;
 

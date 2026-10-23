@@ -249,11 +249,11 @@ export namespace studioapp {
 	    sql: string;
 	    domains?: string[];
 	    lsn?: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new attestQueryRequest(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.sql = source["sql"];
@@ -415,11 +415,11 @@ export namespace studioapp {
 	    pk?: string[];
 	    group?: string[];
 	    group_columns?: string[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ledgerRowKey(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.domain = source["domain"];
@@ -432,17 +432,17 @@ export namespace studioapp {
 	export class ledgerRowProofRequest {
 	    keys: ledgerRowKey[];
 	    lsn?: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ledgerRowProofRequest(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.keys = this.convertValues(source["keys"], ledgerRowKey);
 	        this.lsn = source["lsn"];
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -622,6 +622,22 @@ export namespace studioapp {
 	    }
 	}
 	
+	export class schemaDDLVerifiableGroup {
+	    columns: string[];
+	    references: string;
+	    referenced_columns: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new schemaDDLVerifiableGroup(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.columns = source["columns"];
+	        this.references = source["references"];
+	        this.referenced_columns = source["referenced_columns"];
+	    }
+	}
 	export class schemaDDLVersionedFK {
 	    column: string;
 	    lsn_column: string;
@@ -640,22 +656,6 @@ export namespace studioapp {
 	        this.references_domain = source["references_domain"];
 	        this.references_table = source["references_table"];
 	        this.references_column = source["references_column"];
-	    }
-	}
-	export class schemaDDLVerifiableGroup {
-	    columns: string[];
-	    references: string;
-	    referenced_columns: string[];
-
-	    static createFrom(source: any = {}) {
-	        return new schemaDDLVerifiableGroup(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.columns = source["columns"];
-	        this.references = source["references"];
-	        this.referenced_columns = source["referenced_columns"];
 	    }
 	}
 	export class schemaDDLTable {
@@ -736,6 +736,7 @@ export namespace studioapp {
 		    return a;
 		}
 	}
+	
 	
 	
 	export class schemaDiffRequest {
