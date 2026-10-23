@@ -27,7 +27,9 @@ type LedgerDigest = {
   node_id?: string
   key_id?: string
   signed_at?: string
-  signature?: string
+  // The node's signature over the digest. Named as the engine names it, so a
+  // saved digest is one asqlctl reads.
+  sig?: string
 }
 
 type LedgerStatus = {
@@ -85,6 +87,16 @@ function shortHash(value?: string): string {
   if (!value) return '—'
   if (value.length <= 20) return value
   return `${value.slice(0, 10)}…${value.slice(-6)}`
+}
+
+// signedAtLabel reads the digest's signing time. The engine reports it as an
+// instant, and a digest whose time could not be read carries the zero one,
+// which is not a time to show an operator.
+function signedAtLabel(value?: string): string {
+  if (!value || value.startsWith('0001-01-01')) return '—'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return parsed.toLocaleString()
 }
 
 function digestCoverage(digest?: LedgerDigest): string {
@@ -248,7 +260,7 @@ export function LedgerPanel() {
               <LedgerFact label="Term" value={String(latest.term ?? 0)} />
               <LedgerFact label="Node" value={latest.node_id || '—'} />
               <LedgerFact label="Key" value={latest.key_id || '—'} />
-              <LedgerFact label="Signed at" value={latest.signed_at || '—'} />
+              <LedgerFact label="Signed at" value={signedAtLabel(latest.signed_at)} />
             </div>
           ) : (
             <span className="text-muted">This node holds no ledger digest.</span>

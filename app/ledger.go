@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
+
+	api "github.com/correodabid/asql/pkg/adminapi"
 )
 
 // The ledger surface: the node's tamper-evident WAL ledger (ADR 0005), the
@@ -21,24 +24,6 @@ const (
 	ledgerModeSigned = "signed"
 )
 
-type ledgerDigestInfo struct {
-	// Version is the digest version: 1 is a chain digest, 2 also signs the log
-	// tree root, 3 also signs the state root of the VERIFIABLE tables.
-	Version uint64 `json:"version"`
-	LSN     uint64 `json:"lsn"`
-	Chain   string `json:"chain"`
-	// TreeRoot and StateRoot are empty when the digest's version does not
-	// cover them.
-	TreeRoot  string `json:"tree_root,omitempty"`
-	StateRoot string `json:"state_root,omitempty"`
-	Term      uint64 `json:"term"`
-	Timestamp uint64 `json:"timestamp"`
-	NodeID    string `json:"node_id,omitempty"`
-	KeyID     string `json:"key_id,omitempty"`
-	SignedAt  string `json:"signed_at,omitempty"`
-	Signature string `json:"signature,omitempty"`
-}
-
 type ledgerStatusResponse struct {
 	// Mode is "signed" when the node signs digests, "chain" when it keeps the
 	// hash chain without signing, and "off" when it keeps no digests at all.
@@ -49,7 +34,7 @@ type ledgerStatusResponse struct {
 	Signed       bool              `json:"signed"`
 	Provable     bool              `json:"provable"`
 	RowsProvable bool              `json:"rows_provable"`
-	Digest       *ledgerDigestInfo `json:"digest,omitempty"`
+	Digest       *api.LedgerDigest `json:"digest,omitempty"`
 	// Explanation is one sentence for the panel to show when the node cannot
 	// prove what the operator asked for.
 	Explanation string `json:"explanation,omitempty"`
@@ -90,8 +75,8 @@ func (a *App) LedgerDigest(lsn uint64) (map[string]interface{}, error) {
 type ledgerConsistencyProofResponse struct {
 	FromLSN uint64 `json:"from_lsn"`
 	ToLSN   uint64 `json:"to_lsn"`
-	// FromDigest, ToDigest and Proof are the proof's JSON as the node returned
-	// it, so `asqlctl verify-consistency` can check the same bytes.
+	// FromDigest, ToDigest and Proof are the proof's own JSON, passed through
+	// without being rebuilt, for `asqlctl verify-consistency` to check.
 	FromDigest json.RawMessage `json:"from_digest"`
 	ToDigest   json.RawMessage `json:"to_digest"`
 	Proof      json.RawMessage `json:"proof"`
@@ -184,12 +169,14 @@ type attestQueryRequest struct {
 	LSN     uint64   `json:"lsn,omitempty"`
 }
 
+// attestQueryResponse is adminapi.AttestedResult: the shape
+// `asqlctl attest-query` writes and `asqlctl verify-result` reads, so the file
+// the panel saves is one a verifier accepts. Rows stays raw instead of
+// [][]json.RawMessage only to pass the node's cells through untouched; it
+// encodes to the same JSON.
 type attestQueryResponse struct {
-	// Attestation is the signed envelope: the SQL, the LSN it ran at, the hash
-	// of the rows and the chain value, with the node's signature over all of it.
-	Attestation map[string]interface{} `json:"attestation"`
-	// Rows are the rows the attestation binds, as the node returned them.
-	Rows json.RawMessage `json:"rows"`
+	Attestation api.ResultAttestation `json:"attestation"`
+	Rows        json.RawMessage       `json:"rows"`
 }
 
 // AttestQuery runs a SELECT at a committed LSN and returns its rows with a
@@ -211,16 +198,30 @@ func (a *App) AttestQuery(req attestQueryRequest) (map[string]interface{}, error
 		return nil, err
 	}
 
-	attestation := make(map[string]interface{}, len(row))
-	for key, value := range row {
-		if key == "rows" {
-			continue
-		}
-		attestation[key] = value
-	}
+	// Every column arrives as text, and domains and columns arrive as JSON
+	// array literals. Copying the row as it came left the attestation with
+	// "lsn": "9" and "columns": "[\"id\"]" -- strings where a verifier reads a
+	// number and a list -- so the saved file did not decode as an attestation
+	// at all.
 	return structToMap(attestQueryResponse{
-		Attestation: attestation,
-		Rows:        rawJSONField(row, "rows"),
+		Attestation: api.ResultAttestation{
+			Version:       uint8(toUint64(row["version"])),
+			LSN:           toUint64(row["lsn"]),
+			Chain:         toString(row["chain"]),
+			Term:          toUint64(row["term"]),
+			Timestamp:     toUint64(row["timestamp"]),
+			Domains:       jsonStringList(row["domains"]),
+			SQL:           toString(row["sql"]),
+			ResultHash:    toString(row["result_hash"]),
+			RowCount:      toUint64(row["row_count"]),
+			Columns:       jsonStringList(row["columns"]),
+			EngineVersion: toString(row["engine_version"]),
+			NodeID:        toString(row["node_id"]),
+			KeyID:         toString(row["key_id"]),
+			SignedAt:      parseLedgerTimestamp(toString(row["signed_at"])),
+			Sig:           toString(row["sig"]),
+		},
+		Rows: rawJSONField(row, "rows"),
 	})
 }
 
@@ -308,7 +309,7 @@ func ledgerStatusFromDigest(row map[string]interface{}) ledgerStatusResponse {
 
 	status := ledgerStatusResponse{Digest: digest}
 	switch {
-	case strings.TrimSpace(digest.Signature) == "":
+	case strings.TrimSpace(digest.Sig) == "":
 		status.Mode = ledgerModeChain
 		status.Explanation = "the node keeps the hash chain but does not sign it: consistency and row proofs need ledger mode signed (-ledger-key)"
 	case digest.Version >= 3:
@@ -329,7 +330,12 @@ func ledgerStatusFromDigest(row map[string]interface{}) ledgerStatusResponse {
 	return status
 }
 
-func ledgerDigestFromRow(row map[string]interface{}) *ledgerDigestInfo {
+// ledgerDigestFromRow reads asql_admin.ledger_digest into the engine's own
+// digest type. The view's columns are named exactly as adminapi.LedgerDigest's
+// JSON fields, so what the panel shows and the operator saves is the digest
+// asqlctl reads -- the studio's own copy of the type called the signature
+// "signature", which no verifier looks for.
+func ledgerDigestFromRow(row map[string]interface{}) *api.LedgerDigest {
 	if len(row) == 0 {
 		return nil
 	}
@@ -339,8 +345,8 @@ func ledgerDigestFromRow(row map[string]interface{}) *ledgerDigestInfo {
 	if strings.TrimSpace(chain) == "" {
 		return nil
 	}
-	return &ledgerDigestInfo{
-		Version:   toUint64(row["version"]),
+	return &api.LedgerDigest{
+		Version:   uint8(toUint64(row["version"])),
 		LSN:       toUint64(row["lsn"]),
 		Chain:     chain,
 		TreeRoot:  toString(row["tree_root"]),
@@ -349,14 +355,50 @@ func ledgerDigestFromRow(row map[string]interface{}) *ledgerDigestInfo {
 		Timestamp: toUint64(row["timestamp"]),
 		NodeID:    toString(row["node_id"]),
 		KeyID:     toString(row["key_id"]),
-		SignedAt:  toString(row["signed_at"]),
-		Signature: toString(row["sig"]),
+		SignedAt:  parseLedgerTimestamp(toString(row["signed_at"])),
+		Sig:       toString(row["sig"]),
 	}
 }
 
-// rawJSONField takes a column that holds JSON and passes it through unchanged,
-// so a verifier checks the same bytes the node signed. A column that is not
-// valid JSON goes over as a JSON string rather than breaking the response.
+// parseLedgerTimestamp reads the signing time the engine reports. A value it
+// cannot read leaves the zero time rather than failing the whole digest: the
+// panel still has the chain, the roots and the signature to show.
+func parseLedgerTimestamp(value string) time.Time {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return time.Time{}
+	}
+	for _, layout := range []string{time.RFC3339Nano, "2006-01-02 15:04:05.999999999", "2006-01-02 15:04:05"} {
+		if parsed, err := time.Parse(layout, trimmed); err == nil {
+			return parsed
+		}
+	}
+	return time.Time{}
+}
+
+// jsonStringList reads a column holding a JSON array of strings, which is how
+// the engine reports an attestation's domains and columns.
+func jsonStringList(value interface{}) []string {
+	raw := strings.TrimSpace(toString(value))
+	if raw == "" {
+		return nil
+	}
+	var list []string
+	if err := json.Unmarshal([]byte(raw), &list); err != nil {
+		// Not a JSON array: report the single value rather than nothing, so a
+		// one-domain attestation from an engine that writes it plainly still
+		// names its domain.
+		return []string{raw}
+	}
+	return list
+}
+
+// rawJSONField takes a column that holds JSON and passes it through without
+// rebuilding it, so no value is reinterpreted on the way to a verifier. The
+// response is still re-encoded once as it crosses to the frontend, which is
+// why proofs carry their values as typed cells -- ["i","42"] rather than 42 --
+// and survive it exactly. A column that is not valid JSON goes over as a JSON
+// string rather than breaking the response.
 func rawJSONField(row map[string]interface{}, name string) json.RawMessage {
 	value := strings.TrimSpace(toString(row[name]))
 	if value == "" {
