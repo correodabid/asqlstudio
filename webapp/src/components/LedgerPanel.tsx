@@ -456,8 +456,11 @@ export function LedgerPanel() {
         <div className="glass-section-body">
           <p className="ledger-help">
             Runs a SELECT at a committed LSN and signs its rows together with the SQL and the chain value at
-            that LSN. <code>asqlctl -command verify-result</code> checks the signature, the rows and the chain,
-            and can re-execute the query separately.
+            that LSN. Save the attestation below -- not the workspace grid&rsquo;s export, which holds the rows
+            alone and no verifier reads -- and check it with
+            <code> asqlctl -command verify-result -result attestation.json -pubkey node.pub</code>. From the
+            file by itself that validates the signature and the rows; it reports the chain and a re-execution
+            of the query as not checked, because both need the node rather than the file.
           </p>
           <label className="sec-field">
             <span className="sec-field-label">SELECT to attest</span>
