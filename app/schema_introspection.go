@@ -140,10 +140,11 @@ func snapshotIndexesToDDL(indexes []api.SchemaSnapshotIndex) []schemaDDLIndex {
 		}
 		cols := make([]string, len(idx.Columns))
 		copy(cols, idx.Columns)
+		// Pass the engine's method through exactly as it reports it. Choosing
+		// btree for an index the snapshot leaves unqualified rewrote it: the
+		// engine makes a hash index for a CREATE INDEX with no USING, so the
+		// baseline silently turned such an index into a btree one.
 		method := strings.ToLower(strings.TrimSpace(idx.Method))
-		if method == "" {
-			method = "btree"
-		}
 		result = append(result, schemaDDLIndex{
 			Name:    name,
 			Columns: cols,
